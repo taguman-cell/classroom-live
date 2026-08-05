@@ -187,9 +187,10 @@ function updateResetButton() {
   $("resetBtn").classList.toggle("hidden", !(isOwner && activePoll));
 }
 
+//  確認のダイアログは出しません（投影中に邪魔になるため）。
+//  押した時点ですぐ消えます。元には戻せません。
 $("resetBtn").addEventListener("click", async () => {
   if (!activePoll) return;
-  if (!confirm("いまの投票結果を全部消して、やり直しますか？")) return;
 
   const btn = $("resetBtn");
   btn.disabled = true;
@@ -208,12 +209,16 @@ $("resetBtn").addEventListener("click", async () => {
 
     // この数字が変わると、学生の端末の「投票済み」の記録が無効になります
     await updateDoc(doc(db, ...base), { resetCount: increment(1) });
+
+    // 消えたことが分かるように、ボタンの文字を少しだけ変える
+    btn.textContent = "リセットしました ✓";
+    setTimeout(() => (btn.textContent = "結果をリセット"), 1600);
   } catch (err) {
-    alert("リセットできませんでした。\n" + err.message);
+    btn.textContent = "リセットできません";
+    setTimeout(() => (btn.textContent = "結果をリセット"), 2500);
     console.error(err);
   } finally {
     btn.disabled = false;
-    btn.textContent = "結果をリセット";
   }
 });
 
