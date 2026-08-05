@@ -104,6 +104,22 @@ button.link { background: none; border: none; color: var(--accent); cursor: poin
 .card.dim { opacity: .45; }
 .card.live { border-color: var(--accent); background: var(--accent-soft); }
 
+/* コメントのリアクションボタン（学生側） */
+.react-row {
+  display: flex; align-items: center; gap: .3rem;
+  flex-wrap: wrap; margin-top: .4rem;
+}
+.react-row time { margin-left: auto; }
+button.react {
+  background: #fff; border: 1px solid var(--line); border-radius: 999px;
+  padding: .25rem .55rem; cursor: pointer; font-size: 1rem;
+  line-height: 1; display: inline-flex; align-items: center; gap: .2rem;
+}
+button.react span { font-size: .78rem; font-weight: 700; color: var(--muted); }
+button.react.on { background: var(--accent-soft); border-color: var(--accent); }
+button.react.on span { color: var(--accent); }
+button.react:disabled { opacity: .4; }
+
 .qa-row { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; }
 button.like {
   background: #fff; border: 1px solid var(--line); border-radius: 999px;
@@ -128,6 +144,17 @@ button.option {
 }
 button.option:active { background: var(--accent-soft); }
 button.option.chosen { border-color: var(--accent); background: var(--accent-soft); }
+
+/* 1〜10 の投票（学生側） */
+.scale-guide {
+  display: flex; justify-content: space-between;
+  font-size: .8rem; color: var(--muted); margin: 0 0 .4rem;
+}
+.scale-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; }
+button.option.scale {
+  text-align: center; font-size: 1.35rem; font-weight: 700;
+  padding: 1rem .2rem;
+}
 
 .results-title { font-size: .95rem; margin: 1rem 0 .5rem; }
 .bar-row { display: grid; grid-template-columns: 7rem 1fr 2.5rem;
@@ -171,6 +198,41 @@ body.present {
 .present .bar-track { height: 2.4rem; background: #1e293b; }
 .present .bar-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
 
+/* 投影画面：コメントに付いたリアクション */
+.tile-foot {
+  display: flex; align-items: center; gap: .6rem;
+  margin-top: .5rem; flex-wrap: wrap;
+}
+.tile-foot time { margin-left: auto; }
+.rbs { display: flex; gap: .4rem; flex-wrap: wrap; }
+.rb {
+  background: #334155; border-radius: 999px;
+  padding: .1rem .5rem; font-size: .95rem; white-space: nowrap;
+}
+
+/* 投影画面：1〜10 の投票を縦棒グラフで見せる */
+.avg { font-size: 1.6rem; margin-bottom: 1rem; color: #cbd5e1; }
+.avg strong { font-size: 3rem; color: #fff; }
+.avg span { font-size: 1.1rem; color: #94a3b8; }
+.hist {
+  display: grid; grid-template-columns: repeat(10, 1fr);
+  gap: .6rem; height: 46vh; align-items: end;
+}
+.hist-col {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  height: 100%; text-align: center;
+}
+.hist-num { font-size: 1.3rem; font-weight: 700; margin-bottom: .3rem; height: 1.6rem; }
+.hist-bar {
+  background: linear-gradient(180deg, #60a5fa, #3b82f6);
+  border-radius: 8px 8px 0 0; min-height: 3px;
+  transition: height .4s ease;
+}
+.hist-lab {
+  font-size: 1.2rem; color: #94a3b8; margin-top: .4rem;
+  border-top: 1px solid #334155; padding-top: .3rem;
+}
+
 .joinbox {
   position: fixed; right: 1.2rem; bottom: 1.2rem;
   background: #fff; color: #0f172a; border-radius: 14px;
@@ -189,7 +251,11 @@ body.present {
   border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem;
 }
 .panel h3 { margin: 0 0 .75rem; }
-.panel textarea, .panel input { margin-bottom: .5rem; }
+.panel textarea, .panel input, .panel select { margin-bottom: .5rem; }
+.panel select {
+  width: 100%; padding: .6rem; border: 1px solid var(--line);
+  border-radius: 8px; background: #fff;
+}
 .inline-form { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
 .inline-form input { flex: 1; margin: 0; }
 .switch { display: block; margin-bottom: .6rem; cursor: pointer; }

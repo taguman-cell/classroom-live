@@ -4,7 +4,7 @@
 
 import {
   auth, db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
-  setupTabs, likedStore, votedStore,
+  setupTabs, likedStore, votedStore, reactedStore, REACTIONS, emptyReactions,
   collection, doc, addDoc, setDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, increment, writeBatch,
 } from "./common.js";
@@ -76,6 +76,7 @@ $("commentForm").addEventListener("submit", async (e) => {
       uid: user.uid,
       hidden: false,
       approved: false,
+      reactions: emptyReactions(),
       createdAt: serverTimestamp(),
     });
     $("commentText").value = "";
@@ -94,16 +95,65 @@ function startCommentFeed() {
     limit(50)
   );
   commentFeedUnsub = onSnapshot(q, (snap) => {
-    const items = snap.docs.map((d) => d.data()).filter(visibleToStudents);
+    const items = snap.docs.filter((d) => visibleToStudents(d.data()));
+    const reacted = reactedStore.get(roomId);
+
     $("commentFeed").innerHTML = items.length
-      ? items.map((c) => `
+      ? items.map((d) => {
+          const c = d.data();
+          return `
           <div class="card">
             <p>${escapeHtml(c.text)}</p>
-            <time>${formatTime(c.createdAt)}</time>
-          </div>`).join("")
+            <div class="react-row">
+              ${REACTIONS.map((r) => {
+                const n = c.reactions?.[r.key] || 0;
+                const on = reacted.has(`${d.id}_${r.key}`);
+                return `<button class="react ${on ? "on" : ""}"
+                          data-cid="${d.id}" data-rk="${r.key}"
+                          title="${r.label}" aria-label="${r.label}">
+                          ${r.emoji}${n ? `<span>${n}</span>` : ""}
+                        </button>`;
+              }).join("")}
+              <time>${formatTime(c.createdAt)}</time>
+            </div>
+          </div>`;
+        }).join("")
       : '<p class="empty">まだコメントがありません。</p>';
   });
 }
+
+// --- リアクションを押したとき --------------------------------
+$("commentFeed").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button.react");
+  if (!btn) return;
+
+  const { cid, rk } = btn.dataset;
+  const tag = `${cid}_${rk}`;          // 「どのコメントの、どの絵文字か」
+  const reacted = reactedStore.get(roomId);
+  const isOn = reacted.has(tag);
+
+  // コメントの数字と、「自分が押した」記録を同時に書き込む
+  const batch = writeBatch(db);
+  const cRef = doc(db, "rooms", roomId, "comments", cid);
+  const rRef = doc(db, "rooms", roomId, "comments", cid, "reacts",
+                   `${user.uid}_${rk}`);
+
+  if (isOn) {
+    batch.delete(rRef);
+    batch.update(cRef, { [`reactions.${rk}`]: increment(-1) });
+  } else {
+    batch.set(rRef, { at: serverTimestamp() });
+    batch.update(cRef, { [`reactions.${rk}`]: increment(1) });
+  }
+
+  try {
+    await batch.commit();
+    if (isOn) reacted.delete(tag); else reacted.add(tag);
+    reactedStore.save(roomId, reacted);
+  } catch (err) {
+    console.error(err);
+  }
+});
 
 // 承認制がONなら「承認済み」のものだけ表示する
 function visibleToStudents(d) {
@@ -137,14 +187,18 @@ onSnapshot(pollsQ, (snap) => {
 
 function renderPoll(pollId, poll) {
   const voted = votedStore.has(pollId);
+  const isScale = poll.type === "scale";
+
+  // 1〜10 の投票は数字ボタンを並べる。選択肢式は縦に並べる。
+  const buttons = poll.options.map((opt, i) => `
+    <button class="option ${isScale ? "scale" : ""}" data-i="${i}"
+            ${voted ? "disabled" : ""}>${escapeHtml(opt)}</button>`).join("");
 
   $("pollArea").innerHTML = `
     <h2 class="poll-q">${escapeHtml(poll.question)}</h2>
-    <div id="pollOptions" class="options">
-      ${poll.options.map((opt, i) => `
-        <button class="option" data-i="${i}" ${voted ? "disabled" : ""}>
-          ${escapeHtml(opt)}
-        </button>`).join("")}
+    ${isScale ? '<p class="scale-guide"><span>1 = ぜんぜん</span><span>10 = とても</span></p>' : ""}
+    <div id="pollOptions" class="${isScale ? "scale-grid" : "options"}">
+      ${buttons}
     </div>
     <p id="pollMsg" class="sent-note" ${voted ? "" : "hidden"}>✓ 回答しました</p>
     <div id="pollResults"></div>
@@ -184,8 +238,13 @@ function subscribeResults(pollId, poll) {
         if (counts[c] !== undefined) counts[c]++;
       });
       const total = snap.size || 1;
+      const avg = poll.type === "scale"
+        ? counts.reduce((s, c, i) => s + c * (i + 1), 0) / total
+        : null;
+
       $("pollResults").innerHTML = `
-        <h3 class="results-title">回答結果（${snap.size}人）</h3>
+        <h3 class="results-title">回答結果（${snap.size}人）${
+          avg !== null ? `　平均 <strong>${avg.toFixed(1)}</strong>` : ""}</h3>
         ${poll.options.map((opt, i) => `
           <div class="bar-row">
             <div class="bar-label">${escapeHtml(opt)}</div>

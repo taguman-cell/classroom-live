@@ -99,17 +99,49 @@ export function setupTabs(navSelector) {
   });
 }
 
-/** 「いいね」済みかどうかを、この端末に記録しておく */
-export const likedStore = {
-  key: (roomId) => `liked_${roomId}`,
-  get(roomId) {
-    try { return new Set(JSON.parse(localStorage.getItem(this.key(roomId)) || "[]")); }
-    catch { return new Set(); }
-  },
-  save(roomId, set) {
-    localStorage.setItem(this.key(roomId), JSON.stringify([...set]));
-  },
-};
+// ============================================================
+//  コメントに付けられるリアクション
+// ============================================================
+//  種類を増やしたいときは、ここに1行足して、firestore.rules の
+//  同じ5か所（reactions の一覧）にもキー名を足してください。
+
+export const REACTIONS = [
+  { key: "up",    emoji: "👍", label: "いいね" },
+  { key: "heart", emoji: "❤️", label: "好き" },
+  { key: "lol",   emoji: "😂", label: "笑った" },
+  { key: "wow",   emoji: "😮", label: "びっくり" },
+  { key: "hmm",   emoji: "🤔", label: "なるほど" },
+];
+
+/** 新しいコメントに付ける、リアクション数の初期値 { up:0, heart:0, ... } */
+export function emptyReactions() {
+  return Object.fromEntries(REACTIONS.map((r) => [r.key, 0]));
+}
+
+// ============================================================
+//  「この端末で押したかどうか」の記録
+// ============================================================
+//  同じ人が何度も押せないようにするための記録です。
+//  本当の重複防止は firestore.rules 側で行っています。
+
+function localSet(prefix) {
+  return {
+    key: (roomId) => `${prefix}_${roomId}`,
+    get(roomId) {
+      try { return new Set(JSON.parse(localStorage.getItem(this.key(roomId)) || "[]")); }
+      catch { return new Set(); }
+    },
+    save(roomId, set) {
+      localStorage.setItem(this.key(roomId), JSON.stringify([...set]));
+    },
+  };
+}
+
+/** Q&A で「いいね」した質問 */
+export const likedStore = localSet("liked");
+
+/** コメントに付けたリアクション（"コメントID_up" の形で覚える） */
+export const reactedStore = localSet("reacted");
 
 /** 投票済みかどうかを、この端末に記録しておく */
 export const votedStore = {

@@ -4,7 +4,7 @@
 
 import {
   db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
-  setupTabs, studentUrl,
+  setupTabs, studentUrl, REACTIONS,
   collection, doc, onSnapshot, query, orderBy, limit,
 } from "./common.js";
 
@@ -55,11 +55,21 @@ onSnapshot(
 function renderComments() {
     const items = commentDocs.map((d) => d.data()).filter(showable);
     $("commentWall").innerHTML = items.length
-      ? items.map((c) => `
+      ? items.map((c) => {
+          // 0 のリアクションは表示しない（画面がうるさくなるので）
+          const badges = REACTIONS
+            .filter((r) => (c.reactions?.[r.key] || 0) > 0)
+            .map((r) => `<span class="rb">${r.emoji} ${c.reactions[r.key]}</span>`)
+            .join("");
+          return `
           <div class="tile">
             <p>${escapeHtml(c.text)}</p>
-            <time>${formatTime(c.createdAt)}</time>
-          </div>`).join("")
+            <div class="tile-foot">
+              <span class="rbs">${badges}</span>
+              <time>${formatTime(c.createdAt)}</time>
+            </div>
+          </div>`;
+        }).join("")
       : '<p class="empty">コメントを待っています…</p>';
 }
 
@@ -92,20 +102,43 @@ function watchResults(pollId, poll) {
         if (counts[c] !== undefined) counts[c]++;
       });
       const max = Math.max(1, ...counts);
+
+      // 1〜10 の投票は縦棒グラフ、選択肢式は横棒グラフで見せる
+      const body = poll.type === "scale"
+        ? scaleChart(counts, max, snap.size)
+        : poll.options.map((opt, i) => `
+            <div class="bar-row big">
+              <div class="bar-label">${escapeHtml(opt)}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width:${(counts[i] / max) * 100}%"></div>
+              </div>
+              <div class="bar-num">${counts[i]}</div>
+            </div>`).join("");
+
       $("pollArea").innerHTML = `
         <h2 class="poll-q big">${escapeHtml(poll.question)}</h2>
         <p class="votecount">${snap.size} 人が回答</p>
-        ${poll.options.map((opt, i) => `
-          <div class="bar-row big">
-            <div class="bar-label">${escapeHtml(opt)}</div>
-            <div class="bar-track">
-              <div class="bar-fill" style="width:${(counts[i] / max) * 100}%"></div>
-            </div>
-            <div class="bar-num">${counts[i]}</div>
-          </div>`).join("")}
+        ${body}
       `;
     }
   );
+}
+
+/** 1〜10 の投票を、縦棒グラフ＋平均値で表示する */
+function scaleChart(counts, max, total) {
+  const avg = total
+    ? counts.reduce((s, c, i) => s + c * (i + 1), 0) / total
+    : 0;
+  return `
+    <div class="avg">平均 <strong>${avg.toFixed(1)}</strong> <span>/ 10</span></div>
+    <div class="hist">
+      ${counts.map((c, i) => `
+        <div class="hist-col">
+          <div class="hist-num">${c || ""}</div>
+          <div class="hist-bar" style="height:${(c / max) * 100}%"></div>
+          <div class="hist-lab">${i + 1}</div>
+        </div>`).join("")}
+    </div>`;
 }
 
 // ============================================================

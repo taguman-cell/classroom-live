@@ -3,7 +3,7 @@
 // ============================================================
 
 import {
-  auth, db, escapeHtml, formatTime, makeRoomId, studentUrl,
+  auth, db, escapeHtml, formatTime, makeRoomId, studentUrl, REACTIONS,
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   collection, doc, addDoc, setDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, orderBy, limit, serverTimestamp,
@@ -159,11 +159,15 @@ function watchComments(roomId) {
       $("cCount").textContent = snap.size;
       $("cList").innerHTML = snap.docs.map((d) => {
         const c = d.data();
+        const badges = REACTIONS
+          .filter((r) => (c.reactions?.[r.key] || 0) > 0)
+          .map((r) => `${r.emoji}${c.reactions[r.key]}`)
+          .join(" ");
         return `
           <div class="card row ${c.hidden ? "dim" : ""}">
             <div>
               <p>${escapeHtml(c.text)}</p>
-              <time>${formatTime(c.createdAt)}</time>
+              <time>${formatTime(c.createdAt)}${badges ? "　" + badges : ""}</time>
             </div>
             <div class="actions">
               <button data-c-approve="${d.id}" class="${c.approved ? "on" : ""}">承認</button>
@@ -235,16 +239,30 @@ $("qList").addEventListener("click", async (e) => {
 // ============================================================
 //  アンケートの管理
 // ============================================================
+// 種類を切り替えたら、選択肢の入力欄を出し入れする
+$("pollType").addEventListener("change", () => {
+  $("pollOpts").classList.toggle("hidden", $("pollType").value === "scale");
+});
+
 $("pollForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const question = $("pollQ").value.trim();
-  const options = $("pollOpts").value.split("\n").map((s) => s.trim()).filter(Boolean);
-  if (!question || options.length < 2) {
-    alert("質問文と、2つ以上の選択肢を入れてください。");
+  const type = $("pollType").value;
+
+  // 1〜10 の投票は、選択肢を "1".."10" として自動で作ります。
+  // こうすると集計のしくみを選択肢式と共通にできます。
+  const options = type === "scale"
+    ? Array.from({ length: 10 }, (_, i) => String(i + 1))
+    : $("pollOpts").value.split("\n").map((s) => s.trim()).filter(Boolean);
+
+  if (!question) { alert("質問文を入れてください。"); return; }
+  if (type === "choice" && options.length < 2) {
+    alert("選択肢を2つ以上入れてください。");
     return;
   }
+
   await addDoc(collection(db, "rooms", currentRoom, "polls"), {
-    question, options,
+    question, options, type,
     active: false,       // 「出題する」を押すと学生に出ます
     showResults: false,  // 学生にも結果を見せるか
     createdAt: serverTimestamp(),
@@ -264,7 +282,9 @@ function watchPolls(roomId) {
           <div class="card row ${p.active ? "live" : ""}">
             <div>
               <strong>${escapeHtml(p.question)}</strong>
-              <div class="small">${p.options.map(escapeHtml).join(" / ")}</div>
+              <div class="small">${p.type === "scale"
+                ? "1〜10 の投票"
+                : p.options.map(escapeHtml).join(" / ")}</div>
             </div>
             <div class="actions">
               <button data-p-active="${d.id}" class="${p.active ? "on" : ""}">
