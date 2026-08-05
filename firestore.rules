@@ -1,0 +1,123 @@
+// ============================================================
+//  firestore.rules ― 誰が何をできるかの決まり（超重要）
+// ============================================================
+//
+//  この内容を Firebase コンソールの
+//    Firestore Database → ルール
+//  にまるごと貼り付けて「公開」を押してください。
+//
+//  ざっくり言うと:
+//   ・学生（匿名）… 投稿できる。自分の投稿も他人の投稿も編集/削除はできない
+//   ・先生（Google ログイン）… 自分が作った部屋だけ、すべて操作できる
+//   ・部屋の受付が終了していたら、誰も投稿できない
+//
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- 判定用の小さな関数 ----------------------------------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roomData(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId)).data;
+    }
+
+    function isOwner(roomId) {
+      return signedIn() && roomData(roomId).ownerUid == request.auth.uid;
+    }
+
+    function roomIsOpen(roomId) {
+      return roomData(roomId).open == true;
+    }
+
+    // 学生の投稿として正しい形かどうかを確認する
+    function validPost(roomId) {
+      let d = request.resource.data;
+      return signedIn()
+        && roomIsOpen(roomId)
+        && d.uid == request.auth.uid
+        && d.text is string
+        && d.text.size() > 0
+        && d.text.size() <= 300
+        && d.hidden == false
+        && d.approved == false
+        && d.createdAt == request.time;
+    }
+
+    // ---- 部屋 ------------------------------------------------
+    match /rooms/{roomId} {
+      // 部屋の情報を1件読むのは、ログインしていれば誰でも可（学生が使う）
+      allow get: if signedIn();
+      // 一覧できるのは「自分が作った部屋」だけ
+      allow list: if signedIn() && resource.data.ownerUid == request.auth.uid;
+
+      allow create: if signedIn()
+                    && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isOwner(roomId);
+
+      // ---- コメント -----------------------------------------
+      match /comments/{docId} {
+        allow read: if signedIn();
+        allow create: if validPost(roomId);
+        // 学生は自分の投稿でも消せません（先生だけが管理）
+        allow update, delete: if isOwner(roomId);
+      }
+
+      // ---- Q&A ----------------------------------------------
+      match /questions/{qid} {
+        allow read: if signedIn();
+        allow create: if validPost(roomId)
+                      && request.resource.data.likes == 0
+                      && request.resource.data.answered == false;
+
+        allow update: if isOwner(roomId)
+          // 学生は「いいね」の数を 1 増やす／減らすことだけできる
+          || (
+            signedIn()
+            && roomIsOpen(roomId)
+            && request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['likes'])
+            && (
+              // まだ押していない → +1
+              (request.resource.data.likes == resource.data.likes + 1
+               && !exists(/databases/$(database)/documents/rooms/$(roomId)/questions/$(qid)/votes/$(request.auth.uid)))
+              ||
+              // すでに押している → -1（取り消し）
+              (request.resource.data.likes == resource.data.likes - 1
+               && exists(/databases/$(database)/documents/rooms/$(roomId)/questions/$(qid)/votes/$(request.auth.uid)))
+            )
+          );
+
+        allow delete: if isOwner(roomId);
+
+        // 誰が「いいね」したかの記録（1人1回にするため）
+        match /votes/{uid} {
+          allow read: if signedIn();
+          allow create, delete: if signedIn() && uid == request.auth.uid;
+        }
+      }
+
+      // ---- アンケート ---------------------------------------
+      match /polls/{pollId} {
+        allow read: if signedIn();
+        allow write: if isOwner(roomId);
+
+        // 回答。ドキュメントIDを自分のUIDにすることで1人1票になる
+        match /responses/{uid} {
+          allow read: if signedIn();
+          allow create: if signedIn()
+                        && uid == request.auth.uid
+                        && roomIsOpen(roomId)
+                        && request.resource.data.choice is int
+                        && request.resource.data.choice >= 0;
+          // いったん投票したら学生は変更・取り消しできない
+          allow update: if false;
+          allow delete: if isOwner(roomId);
+        }
+      }
+    }
+  }
+}

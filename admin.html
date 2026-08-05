@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>教員コントロール</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="admin">
+
+<header class="app-header">
+  <div>🎓 教員コントロール</div>
+  <div id="who"></div>
+</header>
+
+<!-- ============ ログイン前 ============ -->
+<section id="loginView" class="pad">
+  <p>Google アカウントでログインしてください。<br>
+     （部屋を作れるのは、ログインしたあなただけになります）</p>
+  <button id="loginBtn" class="primary">Google でログイン</button>
+</section>
+
+<!-- ============ 部屋一覧 ============ -->
+<section id="roomsView" class="pad hidden">
+  <h2>部屋をつくる</h2>
+  <form id="createForm" class="inline-form">
+    <input id="newTitle" placeholder="例：情報リテラシー 第5回" required>
+    <button type="submit" class="primary">作成</button>
+  </form>
+
+  <h2>あなたの部屋</h2>
+  <div id="roomList" class="feed"></div>
+</section>
+
+<!-- ============ 部屋の操作画面 ============ -->
+<section id="roomView" class="pad hidden">
+  <button id="backBtn" class="link">← 部屋一覧へ</button>
+  <h2 id="rvTitle"></h2>
+
+  <div class="panel">
+    <h3>参加用</h3>
+    <div class="joinrow">
+      <canvas id="qr"></canvas>
+      <div>
+        <div class="roomcode" id="rvCode"></div>
+        <p class="mono" id="rvUrl"></p>
+        <button id="copyBtn">URLをコピー</button>
+        <a id="presentLink" target="_blank" class="btnlike">投影画面を開く ↗</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>設定</h3>
+    <label class="switch"><input type="checkbox" id="optOpen"> 投稿を受け付ける</label>
+    <label class="switch"><input type="checkbox" id="optModeration">
+      承認制にする（先生が通した投稿だけ表示）</label>
+    <label class="switch"><input type="checkbox" id="optFeed">
+      学生の画面にもコメント一覧を表示する
+      <small>（通信量が増えます。ふだんはOFF推奨）</small></label>
+  </div>
+
+  <div class="panel">
+    <h3>アンケートを作る</h3>
+    <form id="pollForm">
+      <input id="pollQ" placeholder="質問文" required>
+      <textarea id="pollOpts" rows="4"
+        placeholder="選択肢を1行に1つずつ&#10;はい&#10;いいえ&#10;わからない" required></textarea>
+      <button type="submit" class="primary">追加</button>
+    </form>
+    <div id="pollList" class="feed"></div>
+  </div>
+
+  <div class="panel">
+    <h3>コメント <span id="cCount" class="pill">0</span></h3>
+    <div id="cList" class="feed"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Q&amp;A <span id="qCount" class="pill">0</span></h3>
+    <div id="qList" class="feed"></div>
+  </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<script type="module" src="admin.js"></script>
+</body>
+</html>

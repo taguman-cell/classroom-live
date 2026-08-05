@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>授業ライブ</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="student">
+
+<header class="app-header">
+  <div id="roomTitle">読み込み中…</div>
+  <div id="roomState" class="state"></div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="comments" class="active">💬 コメント</button>
+  <button data-tab="poll">📊 アンケート</button>
+  <button data-tab="qa">❓ Q&amp;A</button>
+</nav>
+
+<main>
+
+  <!-- ============ コメントタブ ============ -->
+  <section id="tab-comments" class="tab-panel">
+    <form id="commentForm" class="composer">
+      <textarea id="commentText" rows="3" maxlength="300"
+        placeholder="授業の感想・気づいたことをどうぞ（300文字まで）"></textarea>
+      <div class="composer-row">
+        <span class="counter"><span id="commentCount">0</span>/300</span>
+        <button type="submit">送信</button>
+      </div>
+    </form>
+    <p class="sent-note" id="commentSent" hidden>✓ 送信しました</p>
+    <div id="commentFeed" class="feed"></div>
+  </section>
+
+  <!-- ============ アンケートタブ ============ -->
+  <section id="tab-poll" class="tab-panel hidden">
+    <div id="pollArea">
+      <p class="empty">いまは実施中のアンケートがありません。</p>
+    </div>
+  </section>
+
+  <!-- ============ Q&Aタブ ============ -->
+  <section id="tab-qa" class="tab-panel hidden">
+    <form id="qaForm" class="composer">
+      <textarea id="qaText" rows="3" maxlength="300"
+        placeholder="先生への質問を書いてください（300文字まで）"></textarea>
+      <div class="composer-row">
+        <span class="counter"><span id="qaCount">0</span>/300</span>
+        <button type="submit">質問する</button>
+      </div>
+    </form>
+    <p class="hint">👍 を押すと、みんなが聞きたい質問が上に来ます。</p>
+    <div id="qaFeed" class="feed"></div>
+  </section>
+
+</main>
+
+<footer class="app-footer">匿名で投稿されます。氏名や個人情報は書かないでください。</footer>
+
+<script type="module" src="student.js"></script>
+</body>
+</html>

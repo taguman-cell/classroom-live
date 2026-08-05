@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>投影画面</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="present">
+
+<header class="present-header">
+  <h1 id="roomTitle">読み込み中…</h1>
+  <nav class="tabs big" id="tabs">
+    <button data-tab="comments" class="active">💬 コメント</button>
+    <button data-tab="poll">📊 アンケート</button>
+    <button data-tab="qa">❓ Q&amp;A</button>
+  </nav>
+</header>
+
+<main class="present-main">
+
+  <section id="tab-comments" class="tab-panel">
+    <div id="commentWall" class="wall"></div>
+  </section>
+
+  <section id="tab-poll" class="tab-panel hidden">
+    <div id="pollArea"><p class="empty">実施中のアンケートはありません。</p></div>
+  </section>
+
+  <section id="tab-qa" class="tab-panel hidden">
+    <div id="qaWall" class="wall"></div>
+  </section>
+
+</main>
+
+<aside class="joinbox">
+  <canvas id="qr"></canvas>
+  <div class="joininfo">
+    <div class="joinlabel">スマホで読み取って参加</div>
+    <div class="roomcode" id="roomCode">------</div>
+  </div>
+</aside>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<script type="module" src="present.js"></script>
+</body>
+</html>
