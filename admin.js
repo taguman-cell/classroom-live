@@ -3,9 +3,9 @@
 // ============================================================
 
 import {
-  auth, db, escapeHtml, formatTime, makeRoomId, studentUrl, REACTIONS,
+  auth, db, escapeHtml, formatTime, makeRoomId, studentUrl, emptyReactions,
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
-  collection, doc, addDoc, setDoc, getDocs, updateDoc, deleteDoc,
+  collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, orderBy, limit, serverTimestamp,
 } from "./common.js";
 
@@ -62,6 +62,8 @@ $("createForm").addEventListener("submit", async (e) => {
     showFeedToStudents: false,
     createdAt: serverTimestamp(),
   });
+  // リアクションの合計を入れておく場所を用意する
+  await setDoc(doc(db, "rooms", id, "meta", "reactions"), emptyReactions());
   $("newTitle").value = "";
   loadRooms();
   openRoom(id);
@@ -143,9 +145,17 @@ function openRoom(roomId) {
   setOpt("optModeration", "moderation");
   setOpt("optFeed", "showFeedToStudents");
 
+  ensureReactionDoc(roomId);
   watchComments(roomId);
   watchQuestions(roomId);
   watchPolls(roomId);
+}
+
+/** 古い部屋にはリアクションの置き場が無いので、無ければ作る */
+async function ensureReactionDoc(roomId) {
+  const ref = doc(db, "rooms", roomId, "meta", "reactions");
+  const snap = await getDoc(ref);
+  if (!snap.exists()) await setDoc(ref, emptyReactions());
 }
 
 // ============================================================
@@ -159,15 +169,11 @@ function watchComments(roomId) {
       $("cCount").textContent = snap.size;
       $("cList").innerHTML = snap.docs.map((d) => {
         const c = d.data();
-        const badges = REACTIONS
-          .filter((r) => (c.reactions?.[r.key] || 0) > 0)
-          .map((r) => `${r.emoji}${c.reactions[r.key]}`)
-          .join(" ");
         return `
           <div class="card row ${c.hidden ? "dim" : ""}">
             <div>
               <p>${escapeHtml(c.text)}</p>
-              <time>${formatTime(c.createdAt)}${badges ? "　" + badges : ""}</time>
+              <time>${formatTime(c.createdAt)}</time>
             </div>
             <div class="actions">
               <button data-c-approve="${d.id}" class="${c.approved ? "on" : ""}">承認</button>
@@ -237,7 +243,7 @@ $("qList").addEventListener("click", async (e) => {
 });
 
 // ============================================================
-//  アンケートの管理
+//  投票の管理
 // ============================================================
 // 種類を切り替えたら、選択肢の入力欄を出し入れする
 $("pollType").addEventListener("change", () => {
@@ -246,7 +252,6 @@ $("pollType").addEventListener("change", () => {
 
 $("pollForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const question = $("pollQ").value.trim();
   const type = $("pollType").value;
 
   // 1〜10 の投票は、選択肢を "1".."10" として自動で作ります。
@@ -255,19 +260,18 @@ $("pollForm").addEventListener("submit", async (e) => {
     ? Array.from({ length: 10 }, (_, i) => String(i + 1))
     : $("pollOpts").value.split("\n").map((s) => s.trim()).filter(Boolean);
 
-  if (!question) { alert("質問文を入れてください。"); return; }
   if (type === "choice" && options.length < 2) {
     alert("選択肢を2つ以上入れてください。");
     return;
   }
 
   await addDoc(collection(db, "rooms", currentRoom, "polls"), {
-    question, options, type,
+    options, type,
     active: false,       // 「出題する」を押すと学生に出ます
     showResults: false,  // 学生にも結果を見せるか
+    resetCount: 0,       // 投影画面でリセットするたびに増えます
     createdAt: serverTimestamp(),
   });
-  $("pollQ").value = "";
   $("pollOpts").value = "";
 });
 
@@ -281,10 +285,11 @@ function watchPolls(roomId) {
         return `
           <div class="card row ${p.active ? "live" : ""}">
             <div>
-              <strong>${escapeHtml(p.question)}</strong>
+              <strong>${p.type === "scale" ? "1〜10 の投票" : "選択肢式"}</strong>
               <div class="small">${p.type === "scale"
-                ? "1〜10 の投票"
+                ? "1 / 2 / 3 … 10"
                 : p.options.map(escapeHtml).join(" / ")}</div>
+              <div class="small">${formatTime(p.createdAt)} 作成</div>
             </div>
             <div class="actions">
               <button data-p-active="${d.id}" class="${p.active ? "on" : ""}">
@@ -293,7 +298,7 @@ function watchPolls(roomId) {
               <button data-p-del="${d.id}" class="danger">削除</button>
             </div>
           </div>`;
-      }).join("") || '<p class="empty">まだアンケートがありません。</p>';
+      }).join("") || '<p class="empty">まだ投票がありません。</p>';
     }
   ));
 }
@@ -315,7 +320,7 @@ $("pollList").addEventListener("click", async (e) => {
     await updateDoc(doc(db, ...base, b.dataset.pRes),
       { showResults: !b.classList.contains("on") });
   }
-  if (b.dataset.pDel && confirm("このアンケートを削除しますか？（回答も消えます）")) {
+  if (b.dataset.pDel && confirm("この投票を削除しますか？（回答も消えます）")) {
     // Firestore は親を消しても中身は残るので、回答を先に消します
     const res = await getDocs(collection(db, ...base, b.dataset.pDel, "responses"));
     await Promise.all(res.docs.map((d) => deleteDoc(d.ref)));

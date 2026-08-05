@@ -61,59 +61,61 @@ service cloud.firestore {
       // ---- コメント -----------------------------------------
       match /comments/{cid} {
         allow read: if signedIn();
-        allow create: if validPost(roomId)
-                      && request.resource.data.reactions
-                         == { 'up': 0, 'heart': 0, 'lol': 0, 'wow': 0, 'hmm': 0 };
+        allow create: if validPost(roomId);
+        // 学生は自分の投稿でも消せません（先生だけが管理）
+        allow update, delete: if isOwner(roomId);
+      }
+
+      // ---- リアクションの合計 --------------------------------
+      //  授業そのものへの反応。コメントとは関係ありません。
+      //  学生は 1種類につき 1回だけ押せます（もう一度押すと取り消し）。
+      match /meta/{metaId} {
+        allow read: if signedIn();
+        allow create, delete: if isOwner(roomId);
 
         // 「自分が押した」記録があるか／ないかを確かめる
-        function pressed(roomId, cid, key) {
-          return exists(/databases/$(database)/documents/rooms/$(roomId)/comments/$(cid)/reacts/$(request.auth.uid + '_' + key));
+        function pressed(roomId, key) {
+          return exists(/databases/$(database)/documents/rooms/$(roomId)/reacts/$(request.auth.uid + '_' + key));
         }
 
-        // 1つの絵文字の数が、ちょうど +1 か -1 だけ動いたか
-        function reactDeltaOk(roomId, cid, key) {
-          let before = resource.data.reactions[key];
-          let after = request.resource.data.reactions[key];
-          return (after == before + 1 && !pressed(roomId, cid, key))
-              || (after == before - 1 &&  pressed(roomId, cid, key));
+        // その絵文字の数が、ちょうど +1 か -1 だけ動いたか
+        function deltaOk(roomId, key) {
+          let before = resource.data[key];
+          let after = request.resource.data[key];
+          return (after == before + 1 && !pressed(roomId, key))
+              || (after == before - 1 &&  pressed(roomId, key));
         }
 
         function changedOnly(key) {
-          return request.resource.data.reactions
-                   .diff(resource.data.reactions).affectedKeys().hasOnly([key]);
+          return request.resource.data.diff(resource.data)
+                   .affectedKeys().hasOnly([key]);
         }
 
         allow update: if isOwner(roomId)
-          // 学生にできるのは、リアクションの数を1つだけ増減することだけ
           || (
             signedIn()
             && roomIsOpen(roomId)
-            && request.resource.data.diff(resource.data)
-                 .affectedKeys().hasOnly(['reactions'])
             && (
-              (changedOnly('up')    && reactDeltaOk(roomId, cid, 'up'))
-              || (changedOnly('heart') && reactDeltaOk(roomId, cid, 'heart'))
-              || (changedOnly('lol')   && reactDeltaOk(roomId, cid, 'lol'))
-              || (changedOnly('wow')   && reactDeltaOk(roomId, cid, 'wow'))
-              || (changedOnly('hmm')   && reactDeltaOk(roomId, cid, 'hmm'))
+                 (changedOnly('up')    && deltaOk(roomId, 'up'))
+              || (changedOnly('heart') && deltaOk(roomId, 'heart'))
+              || (changedOnly('lol')   && deltaOk(roomId, 'lol'))
+              || (changedOnly('wow')   && deltaOk(roomId, 'wow'))
+              || (changedOnly('hmm')   && deltaOk(roomId, 'hmm'))
             )
           );
+      }
 
-        // 学生は自分の投稿でも消せません（先生だけが管理）
-        allow delete: if isOwner(roomId);
-
-        // 誰がどの絵文字を押したかの記録（1人1回にするため）
-        // ドキュメントIDは「自分のUID_絵文字キー」に固定する
-        match /reacts/{rid} {
-          allow read: if signedIn();
-          allow create, delete: if signedIn() && (
-               rid == request.auth.uid + '_up'
-            || rid == request.auth.uid + '_heart'
-            || rid == request.auth.uid + '_lol'
-            || rid == request.auth.uid + '_wow'
-            || rid == request.auth.uid + '_hmm'
-          );
-        }
+      // 誰がどの絵文字を押したかの記録（1人1回にするため）
+      // ドキュメントIDは「自分のUID_絵文字キー」に固定する
+      match /reacts/{rid} {
+        allow read: if signedIn();
+        allow create, delete: if signedIn() && (
+             rid == request.auth.uid + '_up'
+          || rid == request.auth.uid + '_heart'
+          || rid == request.auth.uid + '_lol'
+          || rid == request.auth.uid + '_wow'
+          || rid == request.auth.uid + '_hmm'
+        );
       }
 
       // ---- Q&A ----------------------------------------------

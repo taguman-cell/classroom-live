@@ -9,10 +9,14 @@
 <body class="present">
 
 <header class="present-header">
-  <h1 id="roomTitle">読み込み中…</h1>
+  <div class="header-row">
+    <h1 id="roomTitle">読み込み中…</h1>
+    <!-- リアクションの合計。学生の画面には出ません -->
+    <div class="react-total" id="reactTotal"></div>
+  </div>
   <nav class="tabs big" id="tabs">
     <button data-tab="comments" class="active">💬 コメント</button>
-    <button data-tab="poll">📊 アンケート</button>
+    <button data-tab="poll">📊 投票結果</button>
     <button data-tab="qa">❓ Q&amp;A</button>
   </nav>
 </header>
@@ -24,7 +28,9 @@
   </section>
 
   <section id="tab-poll" class="tab-panel hidden">
-    <div id="pollArea"><p class="empty">実施中のアンケートはありません。</p></div>
+    <!-- リセットは、この画面を先生自身が開いているときだけ出ます -->
+    <button id="resetBtn" class="reset-btn hidden">結果をリセット</button>
+    <div id="pollArea"><p class="empty">実施中の投票はありません。</p></div>
   </section>
 
   <section id="tab-qa" class="tab-panel hidden">

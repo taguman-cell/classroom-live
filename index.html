@@ -15,7 +15,7 @@
 
 <nav class="tabs" id="tabs">
   <button data-tab="comments" class="active">💬 コメント</button>
-  <button data-tab="poll">📊 アンケート</button>
+  <button data-tab="poll">📊 投票</button>
   <button data-tab="qa">❓ Q&amp;A</button>
 </nav>
 
@@ -35,12 +35,13 @@
     <div id="commentFeed" class="feed"></div>
   </section>
 
-  <!-- ============ アンケートタブ ============ -->
+  <!-- ============ 投票タブ ============ -->
   <section id="tab-poll" class="tab-panel hidden">
     <div id="pollArea">
-      <p class="empty">いまは実施中のアンケートがありません。</p>
+      <p class="empty">いまは実施中の投票がありません。</p>
     </div>
   </section>
+
 
   <!-- ============ Q&Aタブ ============ -->
   <section id="tab-qa" class="tab-panel hidden">
@@ -57,6 +58,12 @@
   </section>
 
 </main>
+
+<!-- リアクション。どのタブを開いていても押せるよう、常に下に出しておきます -->
+<div class="reactbar" id="reactBar">
+  <span class="reactbar-label">リアクション</span>
+  <div class="reactbar-btns" id="reactBtns"></div>
+</div>
 
 <footer class="app-footer">匿名で投稿されます。氏名や個人情報は書かないでください。</footer>
 

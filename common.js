@@ -46,13 +46,21 @@ export function getRoomIdFromUrl() {
   return new URLSearchParams(location.search).get("r");
 }
 
-/** 匿名ログイン（学生・投影用）。ユーザーには何も見えません */
+/**
+ * ログインを済ませる（学生・投影用）。
+ * すでに先生が Google でログインしている場合は、それをそのまま使います。
+ * （ここで無条件に匿名ログインすると、教員ページのログインが外れてしまうため）
+ */
 export function signInAsGuest() {
   return new Promise((resolve, reject) => {
-    onAuthStateChanged(auth, (user) => {
-      if (user) resolve(user);
+    let tried = false;
+    const stop = onAuthStateChanged(auth, (user) => {
+      if (user) { stop(); resolve(user); return; }
+      if (!tried) {
+        tried = true;
+        signInAnonymously(auth).catch(reject);
+      }
     });
-    signInAnonymously(auth).catch(reject);
   });
 }
 
@@ -100,10 +108,13 @@ export function setupTabs(navSelector) {
 }
 
 // ============================================================
-//  コメントに付けられるリアクション
+//  リアクション（授業そのものへの反応。コメントとは別）
 // ============================================================
+//  学生はコメントを書かなくても、このボタンだけ押せます。
+//  合計数は投影画面にだけ出ます（学生の画面には出しません）。
+//
 //  種類を増やしたいときは、ここに1行足して、firestore.rules の
-//  同じ5か所（reactions の一覧）にもキー名を足してください。
+//  同じキー名の一覧にも足してください。
 
 export const REACTIONS = [
   { key: "up",    emoji: "👍", label: "いいね" },
@@ -113,7 +124,7 @@ export const REACTIONS = [
   { key: "hmm",   emoji: "🤔", label: "なるほど" },
 ];
 
-/** 新しいコメントに付ける、リアクション数の初期値 { up:0, heart:0, ... } */
+/** リアクション数の初期値 { up:0, heart:0, ... } */
 export function emptyReactions() {
   return Object.fromEntries(REACTIONS.map((r) => [r.key, 0]));
 }
@@ -140,11 +151,20 @@ function localSet(prefix) {
 /** Q&A で「いいね」した質問 */
 export const likedStore = localSet("liked");
 
-/** コメントに付けたリアクション（"コメントID_up" の形で覚える） */
+/** この部屋で押したリアクション（"up" などのキーを覚える） */
 export const reactedStore = localSet("reacted");
 
-/** 投票済みかどうかを、この端末に記録しておく */
+/**
+ * 投票済みかどうかを、この端末に記録しておく。
+ * 先生が結果をリセットすると resetCount が増え、記録が別物になるので
+ * もう一度投票できるようになります。
+ */
 export const votedStore = {
-  has: (pollId) => localStorage.getItem(`voted_${pollId}`) === "1",
-  set: (pollId) => localStorage.setItem(`voted_${pollId}`, "1"),
+  key: (pollId, resetCount = 0) => `voted_${pollId}_${resetCount}`,
+  has(pollId, resetCount) {
+    return localStorage.getItem(this.key(pollId, resetCount)) === "1";
+  },
+  set(pollId, resetCount) {
+    localStorage.setItem(this.key(pollId, resetCount), "1");
+  },
 };

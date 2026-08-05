@@ -61,13 +61,14 @@
   </div>
 
   <div class="panel">
-    <h3>投票・アンケートを作る</h3>
+    <h3>投票をつくる</h3>
+    <p class="small">設問の文章は、先生のスライドで見せてください。
+      学生の画面と投影画面には選択肢だけが出ます。</p>
     <form id="pollForm">
       <select id="pollType">
         <option value="scale">1〜10 の投票（10段階で評価してもらう）</option>
         <option value="choice">選択肢式（自分で選択肢を書く）</option>
       </select>
-      <input id="pollQ" placeholder="質問文（例：今日の授業の理解度は？）" required>
       <textarea id="pollOpts" rows="4" class="hidden"
         placeholder="選択肢を1行に1つずつ&#10;はい&#10;いいえ&#10;わからない"></textarea>
       <button type="submit" class="primary">追加</button>

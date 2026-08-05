@@ -3,8 +3,8 @@
 // ============================================================
 
 import {
-  auth, db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
-  setupTabs, likedStore, votedStore, reactedStore, REACTIONS, emptyReactions,
+  db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
+  setupTabs, likedStore, votedStore, reactedStore, REACTIONS,
   collection, doc, addDoc, setDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, increment, writeBatch,
 } from "./common.js";
@@ -41,8 +41,8 @@ onSnapshot(doc(db, "rooms", roomId), (snap) => {
   $("roomState").textContent = room.open ? "受付中" : "受付を終了しました";
   $("roomState").className = "state " + (room.open ? "open" : "closed");
 
-  // 受付終了なら入力欄を止める
-  document.querySelectorAll("textarea, .composer button")
+  // 受付終了なら、入力欄とリアクションを止める
+  document.querySelectorAll("textarea, .composer button, .reactbar button")
     .forEach((el) => (el.disabled = !room.open));
 
   // 「学生にもコメント一覧を見せる」設定に応じて購読を切り替える
@@ -60,7 +60,57 @@ onSnapshot(doc(db, "rooms", roomId), (snap) => {
 });
 
 // ============================================================
-//  2. コメントタブ
+//  2. リアクション（コメントを書かなくても押せる）
+// ============================================================
+//  合計数はこの画面には出しません。投影画面にだけ出ます。
+//  こうすると通信量がほとんど増えません。
+
+function drawReactButtons() {
+  const mine = reactedStore.get(roomId);
+  $("reactBtns").innerHTML = REACTIONS.map((r) => `
+    <button class="react ${mine.has(r.key) ? "on" : ""}"
+            data-rk="${r.key}" title="${r.label}" aria-label="${r.label}">
+      ${r.emoji}
+    </button>`).join("");
+}
+drawReactButtons();
+
+$("reactBtns").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-rk]");
+  if (!btn || btn.disabled) return;
+
+  const key = btn.dataset.rk;
+  const mine = reactedStore.get(roomId);
+  const isOn = mine.has(key);
+
+  // 合計数と、「自分が押した」記録を同時に書き込む
+  const batch = writeBatch(db);
+  const totalRef = doc(db, "rooms", roomId, "meta", "reactions");
+  const myRef = doc(db, "rooms", roomId, "reacts", `${user.uid}_${key}`);
+
+  if (isOn) {
+    batch.delete(myRef);
+    batch.update(totalRef, { [key]: increment(-1) });
+  } else {
+    batch.set(myRef, { at: serverTimestamp() });
+    batch.update(totalRef, { [key]: increment(1) });
+  }
+
+  // 押した感じをすぐ出すために、先に見た目を変える
+  btn.classList.toggle("on", !isOn);
+
+  try {
+    await batch.commit();
+    if (isOn) mine.delete(key); else mine.add(key);
+    reactedStore.save(roomId, mine);
+  } catch (err) {
+    btn.classList.toggle("on", isOn);   // 失敗したら元に戻す
+    console.error(err);
+  }
+});
+
+// ============================================================
+//  3. コメントタブ
 // ============================================================
 $("commentText").addEventListener("input", (e) => {
   $("commentCount").textContent = e.target.value.length;
@@ -76,7 +126,6 @@ $("commentForm").addEventListener("submit", async (e) => {
       uid: user.uid,
       hidden: false,
       approved: false,
-      reactions: emptyReactions(),
       createdAt: serverTimestamp(),
     });
     $("commentText").value = "";
@@ -95,65 +144,16 @@ function startCommentFeed() {
     limit(50)
   );
   commentFeedUnsub = onSnapshot(q, (snap) => {
-    const items = snap.docs.filter((d) => visibleToStudents(d.data()));
-    const reacted = reactedStore.get(roomId);
-
+    const items = snap.docs.map((d) => d.data()).filter(visibleToStudents);
     $("commentFeed").innerHTML = items.length
-      ? items.map((d) => {
-          const c = d.data();
-          return `
+      ? items.map((c) => `
           <div class="card">
             <p>${escapeHtml(c.text)}</p>
-            <div class="react-row">
-              ${REACTIONS.map((r) => {
-                const n = c.reactions?.[r.key] || 0;
-                const on = reacted.has(`${d.id}_${r.key}`);
-                return `<button class="react ${on ? "on" : ""}"
-                          data-cid="${d.id}" data-rk="${r.key}"
-                          title="${r.label}" aria-label="${r.label}">
-                          ${r.emoji}${n ? `<span>${n}</span>` : ""}
-                        </button>`;
-              }).join("")}
-              <time>${formatTime(c.createdAt)}</time>
-            </div>
-          </div>`;
-        }).join("")
+            <time>${formatTime(c.createdAt)}</time>
+          </div>`).join("")
       : '<p class="empty">まだコメントがありません。</p>';
   });
 }
-
-// --- リアクションを押したとき --------------------------------
-$("commentFeed").addEventListener("click", async (e) => {
-  const btn = e.target.closest("button.react");
-  if (!btn) return;
-
-  const { cid, rk } = btn.dataset;
-  const tag = `${cid}_${rk}`;          // 「どのコメントの、どの絵文字か」
-  const reacted = reactedStore.get(roomId);
-  const isOn = reacted.has(tag);
-
-  // コメントの数字と、「自分が押した」記録を同時に書き込む
-  const batch = writeBatch(db);
-  const cRef = doc(db, "rooms", roomId, "comments", cid);
-  const rRef = doc(db, "rooms", roomId, "comments", cid, "reacts",
-                   `${user.uid}_${rk}`);
-
-  if (isOn) {
-    batch.delete(rRef);
-    batch.update(cRef, { [`reactions.${rk}`]: increment(-1) });
-  } else {
-    batch.set(rRef, { at: serverTimestamp() });
-    batch.update(cRef, { [`reactions.${rk}`]: increment(1) });
-  }
-
-  try {
-    await batch.commit();
-    if (isOn) reacted.delete(tag); else reacted.add(tag);
-    reactedStore.save(roomId, reacted);
-  } catch (err) {
-    console.error(err);
-  }
-});
 
 // 承認制がONなら「承認済み」のものだけ表示する
 function visibleToStudents(d) {
@@ -163,8 +163,10 @@ function visibleToStudents(d) {
 }
 
 // ============================================================
-//  3. アンケートタブ
+//  4. 投票タブ
 // ============================================================
+//  設問の文章はここには出しません。先生がスライドで見せる前提です。
+
 const pollsQ = query(
   collection(db, "rooms", roomId, "polls"),
   orderBy("createdAt", "desc"),
@@ -179,14 +181,15 @@ onSnapshot(pollsQ, (snap) => {
 
   if (!active) {
     $("pollArea").innerHTML =
-      '<p class="empty">いまは実施中のアンケートがありません。</p>';
+      '<p class="empty">いまは実施中の投票がありません。</p>';
     return;
   }
   renderPoll(active.id, active.data());
 });
 
 function renderPoll(pollId, poll) {
-  const voted = votedStore.has(pollId);
+  const reset = poll.resetCount || 0;
+  const voted = votedStore.has(pollId, reset);
   const isScale = poll.type === "scale";
 
   // 1〜10 の投票は数字ボタンを並べる。選択肢式は縦に並べる。
@@ -195,8 +198,7 @@ function renderPoll(pollId, poll) {
             ${voted ? "disabled" : ""}>${escapeHtml(opt)}</button>`).join("");
 
   $("pollArea").innerHTML = `
-    <h2 class="poll-q">${escapeHtml(poll.question)}</h2>
-    ${isScale ? '<p class="scale-guide"><span>1 = ぜんぜん</span><span>10 = とても</span></p>' : ""}
+    <p class="poll-lead">${voted ? "回答を受け付けました" : "前の画面を見て選んでください"}</p>
     <div id="pollOptions" class="${isScale ? "scale-grid" : "options"}">
       ${buttons}
     </div>
@@ -213,7 +215,7 @@ function renderPoll(pollId, poll) {
         doc(db, "rooms", roomId, "polls", pollId, "responses", user.uid),
         { choice: Number(btn.dataset.i), createdAt: serverTimestamp() }
       );
-      votedStore.set(pollId);
+      votedStore.set(pollId, reset);
       $("pollOptions").querySelectorAll("button").forEach((b) => (b.disabled = true));
       btn.classList.add("chosen");
       $("pollMsg").hidden = false;
@@ -227,7 +229,7 @@ function renderPoll(pollId, poll) {
   if (voted && poll.showResults) subscribeResults(pollId, poll);
 }
 
-// 結果を集計して表示する（先生が「結果を見せる」をONにしたときだけ）
+// 結果を集計して表示する（先生が「結果公開」をONにしたときだけ）
 function subscribeResults(pollId, poll) {
   activePollUnsub = onSnapshot(
     collection(db, "rooms", roomId, "polls", pollId, "responses"),
@@ -238,13 +240,9 @@ function subscribeResults(pollId, poll) {
         if (counts[c] !== undefined) counts[c]++;
       });
       const total = snap.size || 1;
-      const avg = poll.type === "scale"
-        ? counts.reduce((s, c, i) => s + c * (i + 1), 0) / total
-        : null;
 
       $("pollResults").innerHTML = `
-        <h3 class="results-title">回答結果（${snap.size}人）${
-          avg !== null ? `　平均 <strong>${avg.toFixed(1)}</strong>` : ""}</h3>
+        <h3 class="results-title">回答結果（${snap.size}人）</h3>
         ${poll.options.map((opt, i) => `
           <div class="bar-row">
             <div class="bar-label">${escapeHtml(opt)}</div>
@@ -259,7 +257,7 @@ function subscribeResults(pollId, poll) {
 }
 
 // ============================================================
-//  4. Q&Aタブ
+//  5. Q&Aタブ
 // ============================================================
 $("qaText").addEventListener("input", (e) => {
   $("qaCount").textContent = e.target.value.length;

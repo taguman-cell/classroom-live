@@ -104,21 +104,26 @@ button.link { background: none; border: none; color: var(--accent); cursor: poin
 .card.dim { opacity: .45; }
 .card.live { border-color: var(--accent); background: var(--accent-soft); }
 
-/* コメントのリアクションボタン（学生側） */
-.react-row {
-  display: flex; align-items: center; gap: .3rem;
-  flex-wrap: wrap; margin-top: .4rem;
+/* リアクションのバー（学生側・画面の下に常に出る） */
+.reactbar {
+  position: sticky; bottom: 0; z-index: 8;
+  background: var(--card); border-top: 1px solid var(--line);
+  padding: .55rem .75rem .7rem;
+  display: flex; align-items: center; gap: .6rem;
 }
-.react-row time { margin-left: auto; }
+.reactbar-label {
+  font-size: .7rem; color: var(--muted); font-weight: 700;
+  writing-mode: horizontal-tb; white-space: nowrap;
+}
+.reactbar-btns { display: flex; gap: .45rem; flex: 1; }
 button.react {
-  background: #fff; border: 1px solid var(--line); border-radius: 999px;
-  padding: .25rem .55rem; cursor: pointer; font-size: 1rem;
-  line-height: 1; display: inline-flex; align-items: center; gap: .2rem;
+  flex: 1; background: #fff; border: 1px solid var(--line);
+  border-radius: 12px; padding: .5rem .2rem; cursor: pointer;
+  font-size: 1.5rem; line-height: 1.1;
 }
-button.react span { font-size: .78rem; font-weight: 700; color: var(--muted); }
 button.react.on { background: var(--accent-soft); border-color: var(--accent); }
-button.react.on span { color: var(--accent); }
 button.react:disabled { opacity: .4; }
+button.react:active { transform: scale(.92); }
 
 .qa-row { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; }
 button.like {
@@ -146,9 +151,8 @@ button.option:active { background: var(--accent-soft); }
 button.option.chosen { border-color: var(--accent); background: var(--accent-soft); }
 
 /* 1〜10 の投票（学生側） */
-.scale-guide {
-  display: flex; justify-content: space-between;
-  font-size: .8rem; color: var(--muted); margin: 0 0 .4rem;
+.poll-lead {
+  font-size: .9rem; color: var(--muted); margin: 0 0 .75rem; text-align: center;
 }
 .scale-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; }
 button.option.scale {
@@ -164,83 +168,197 @@ button.option.scale {
 .bar-fill { background: var(--accent); height: 100%; transition: width .4s ease; }
 .bar-num { text-align: right; font-weight: 700; }
 
+
 /* ============================================================
    投影画面（教室のスクリーン用）
+   ポップな配色。プロジェクタで映すことを前提に、明るい背景にしています。
+   色を変えたいときは、この --p1〜--p6 の6色を差し替えてください。
    ============================================================ */
 body.present {
-  background: #0f172a; color: #e8ecf4;
+  --p1: #FF5D8F;   /* ピンク */
+  --p2: #FFB627;   /* イエロー */
+  --p3: #3DD68C;   /* グリーン */
+  --p4: #3B9EFF;   /* ブルー */
+  --p5: #A66BFF;   /* パープル */
+  --p6: #FF7A45;   /* オレンジ */
+  --ink: #1A1B2E;
+
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 12% 18%, #FFE8F0 0, transparent 42%),
+    radial-gradient(circle at 88% 12%, #E6F3FF 0, transparent 40%),
+    radial-gradient(circle at 70% 90%, #FFF6DC 0, transparent 45%),
+    #FDFBF7;
   height: 100vh; display: flex; flex-direction: column; overflow: hidden;
 }
-.present-header { padding: 1rem 1.5rem; border-bottom: 1px solid #1e293b; }
-.present-header h1 { margin: 0 0 .5rem; font-size: 1.6rem; }
-.tabs.big { background: none; border: none; position: static; gap: .5rem; }
-.tabs.big button { flex: 0 0 auto; font-size: 1.05rem; color: #94a3b8; padding: .4rem 1rem; }
-.tabs.big button.active { color: #fff; border-bottom-color: #60a5fa; }
 
-.present-main { flex: 1; overflow-y: auto; padding: 1.5rem 1.5rem 1.5rem; }
+/* ---- ヘッダー ---- */
+.present-header {
+  padding: 1rem 1.5rem .8rem;
+  border-bottom: 4px solid var(--ink);
+  background: #fff;
+}
+.present-header h1 {
+  margin: 0 0 .6rem; font-size: 1.9rem; font-weight: 900;
+  letter-spacing: .01em;
+}
+.tabs.big { background: none; border: none; position: static; gap: .6rem; }
+.tabs.big button {
+  flex: 0 0 auto; font-size: 1.05rem; font-weight: 800;
+  color: var(--ink); background: #fff;
+  border: 3px solid var(--ink); border-bottom: 3px solid var(--ink);
+  border-radius: 999px; padding: .35rem 1.1rem;
+  box-shadow: 3px 3px 0 var(--ink);
+}
+.tabs.big button.active {
+  background: var(--p2); box-shadow: 3px 3px 0 var(--ink);
+  transform: translate(-1px, -1px);
+}
+
+/* max-width / margin は、スマホ用の main の指定を打ち消しています
+   （投影画面は画面いっぱいに広げたいため）。 */
+.present-main {
+  flex: 1; overflow-y: auto;
+  /* 右の余白は、右下のQRコード枠と中身が重ならないよう空けています */
+  padding: 1.5rem 16rem 2rem 1.5rem;
+  max-width: none; margin: 0;
+}
 .present .tab-panel { height: 100%; }
-.wall { columns: 3; column-gap: 1rem; }
+
+/* ---- コメント・質問のカード（付箋ふうに少し傾ける）---- */
+.wall { columns: 3; column-gap: 1.1rem; }
 @media (max-width: 1100px) { .wall { columns: 2; } }
 .tile {
-  break-inside: avoid; background: #1e293b; border: 1px solid #334155;
-  border-radius: 14px; padding: 1rem; margin-bottom: 1rem;
-  font-size: 1.25rem; line-height: 1.5;
+  break-inside: avoid; background: #fff;
+  border: 3px solid var(--ink); border-radius: 18px;
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 1.1rem 1.2rem; margin-bottom: 1.3rem;
+  font-size: 1.3rem; line-height: 1.55; font-weight: 600;
 }
 .tile p { margin: 0; white-space: pre-wrap; word-break: break-word; }
-.tile time { font-size: .8rem; color: #94a3b8; }
-.tile .likes { color: #60a5fa; font-size: 1.05rem; }
-.tile.answered { opacity: .5; }
-.present .empty { color: #94a3b8; font-size: 1.3rem; }
-.present .poll-q.big { font-size: 2.2rem; margin-bottom: .5rem; }
-.present .votecount { color: #94a3b8; margin: 0 0 1.5rem; }
-.present .bar-row.big { grid-template-columns: 16rem 1fr 4rem; font-size: 1.5rem; margin-bottom: 1rem; }
-.present .bar-row.big .bar-label { font-size: 1.4rem; }
-.present .bar-track { height: 2.4rem; background: #1e293b; }
-.present .bar-fill { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.tile time { font-size: .8rem; color: #6b6f80; font-weight: 700; }
 
-/* 投影画面：コメントに付いたリアクション */
-.tile-foot {
-  display: flex; align-items: center; gap: .6rem;
-  margin-top: .5rem; flex-wrap: wrap;
-}
-.tile-foot time { margin-left: auto; }
-.rbs { display: flex; gap: .4rem; flex-wrap: wrap; }
-.rb {
-  background: #334155; border-radius: 999px;
-  padding: .1rem .5rem; font-size: .95rem; white-space: nowrap;
-}
+/* カードごとに色と傾きを変えて、にぎやかに見せる */
+.wall .tile:nth-child(6n+1) { background: #FFE6EE; transform: rotate(-1.1deg); }
+.wall .tile:nth-child(6n+2) { background: #E4F7EC; transform: rotate(.9deg); }
+.wall .tile:nth-child(6n+3) { background: #E6F0FF; transform: rotate(-.6deg); }
+.wall .tile:nth-child(6n+4) { background: #FFF3D6; transform: rotate(1.2deg); }
+.wall .tile:nth-child(6n+5) { background: #F1E7FF; transform: rotate(-.9deg); }
+.wall .tile:nth-child(6n+6) { background: #FFEBDF; transform: rotate(.7deg); }
 
-/* 投影画面：1〜10 の投票を縦棒グラフで見せる */
-.avg { font-size: 1.6rem; margin-bottom: 1rem; color: #cbd5e1; }
-.avg strong { font-size: 3rem; color: #fff; }
-.avg span { font-size: 1.1rem; color: #94a3b8; }
-.hist {
-  display: grid; grid-template-columns: repeat(10, 1fr);
-  gap: .6rem; height: 46vh; align-items: end;
+.tile .likes {
+  display: inline-block; background: var(--ink); color: #fff;
+  border-radius: 999px; padding: .1rem .8rem;
+  font-size: 1.05rem; font-weight: 900; margin-bottom: .5rem;
 }
-.hist-col {
-  display: flex; flex-direction: column; justify-content: flex-end;
-  height: 100%; text-align: center;
+.tile.answered { opacity: .55; }
+.tile .badge {
+  background: var(--p3); color: var(--ink); border: 2px solid var(--ink);
+  font-size: .8rem; font-weight: 900;
 }
-.hist-num { font-size: 1.3rem; font-weight: 700; margin-bottom: .3rem; height: 1.6rem; }
-.hist-bar {
-  background: linear-gradient(180deg, #60a5fa, #3b82f6);
-  border-radius: 8px 8px 0 0; min-height: 3px;
-  transition: height .4s ease;
-}
-.hist-lab {
-  font-size: 1.2rem; color: #94a3b8; margin-top: .4rem;
-  border-top: 1px solid #334155; padding-top: .3rem;
-}
+.present .empty { color: #7a7f92; font-size: 1.4rem; font-weight: 700; }
 
+/* ---- 投票結果の棒グラフ ---- */
+.present .votecount {
+  display: inline-block; background: var(--ink); color: #fff;
+  border-radius: 999px; padding: .3rem 1.1rem;
+  font-size: 1.1rem; font-weight: 900; margin: 0 0 1.4rem;
+}
+.present .bar-row.big {
+  grid-template-columns: 16rem 1fr 4rem;
+  font-size: 1.5rem; margin-bottom: .9rem;
+}
+.present .bar-row.big .bar-label { font-size: 1.4rem; font-weight: 800; }
+.present .bar-track {
+  height: 2.6rem; background: #fff;
+  border: 3px solid var(--ink); border-radius: 999px; overflow: hidden;
+}
+.present .bar-fill { border-radius: 0 999px 999px 0; }
+.present .bar-num { font-weight: 900; font-size: 1.6rem; }
+
+/* 棒の色。選択肢式は6色を順ぐりに使う */
+.present .bars .bar-row.big:nth-child(6n+1) .bar-fill { background: var(--p1); }
+.present .bars .bar-row.big:nth-child(6n+2) .bar-fill { background: var(--p2); }
+.present .bars .bar-row.big:nth-child(6n+3) .bar-fill { background: var(--p3); }
+.present .bars .bar-row.big:nth-child(6n+4) .bar-fill { background: var(--p4); }
+.present .bars .bar-row.big:nth-child(6n+5) .bar-fill { background: var(--p5); }
+.present .bars .bar-row.big:nth-child(6n+6) .bar-fill { background: var(--p6); }
+
+/* 1〜10 の投票だけは「低い＝赤 → 高い＝緑」にして、ひと目で傾向が分かるように */
+.present .bar-row.big.scale { grid-template-columns: 2.8rem 1fr 3.5rem; margin-bottom: .55rem; }
+.present .bar-row.big.scale .bar-label { text-align: right; color: #6b6f80; }
+.present .bar-row.big.scale .bar-track { height: 2.1rem; }
+.present .bars .bar-row.scale:nth-child(1)  .bar-fill { background: #FF4D6D; }
+.present .bars .bar-row.scale:nth-child(2)  .bar-fill { background: #FF6B57; }
+.present .bars .bar-row.scale:nth-child(3)  .bar-fill { background: #FF8A3D; }
+.present .bars .bar-row.scale:nth-child(4)  .bar-fill { background: #FFA92B; }
+.present .bars .bar-row.scale:nth-child(5)  .bar-fill { background: #FFC61F; }
+.present .bars .bar-row.scale:nth-child(6)  .bar-fill { background: #E8CE1E; }
+.present .bars .bar-row.scale:nth-child(7)  .bar-fill { background: #B9D129; }
+.present .bars .bar-row.scale:nth-child(8)  .bar-fill { background: #86CF44; }
+.present .bars .bar-row.scale:nth-child(9)  .bar-fill { background: #57C862; }
+.present .bars .bar-row.scale:nth-child(10) .bar-fill { background: #29BE7B; }
+
+/* ---- リアクションの合計（右上）---- */
+.header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+}
+.react-total { display: flex; gap: .6rem; }
+.rt {
+  background: #fff; border: 3px solid var(--ink); border-radius: 999px;
+  padding: .2rem .9rem; font-size: 1.5rem; font-weight: 900;
+  white-space: nowrap; box-shadow: 3px 3px 0 var(--ink);
+}
+.rt b { font-weight: 400; }
+.react-total .rt:nth-child(1) { background: #FFE6EE; }
+.react-total .rt:nth-child(2) { background: #FFF3D6; }
+.react-total .rt:nth-child(3) { background: #E4F7EC; }
+.react-total .rt:nth-child(4) { background: #E6F0FF; }
+.react-total .rt:nth-child(5) { background: #F1E7FF; }
+
+/* ---- 結果のリセットボタン ---- */
+.reset-btn {
+  float: right; background: #fff; color: var(--ink);
+  border: 3px solid var(--ink); border-radius: 999px;
+  padding: .35rem 1.1rem; font-size: .95rem; font-weight: 800;
+  cursor: pointer; box-shadow: 3px 3px 0 var(--ink);
+}
+.reset-btn:hover { background: var(--p2); }
+.reset-btn:active { transform: translate(3px, 3px); box-shadow: none; }
+.reset-btn:disabled { opacity: .5; cursor: default; }
+
+/* ---- 参加用のQRコード枠 ---- */
 .joinbox {
   position: fixed; right: 1.2rem; bottom: 1.2rem;
-  background: #fff; color: #0f172a; border-radius: 14px;
-  padding: .9rem; display: flex; gap: .8rem; align-items: center;
-  box-shadow: 0 8px 30px rgba(0,0,0,.4);
+  background: #fff; color: var(--ink);
+  border: 4px solid var(--ink); border-radius: 20px;
+  padding: .9rem; display: flex; flex-direction: column; gap: .5rem;
+  align-items: center; text-align: center;
+  box-shadow: 8px 8px 0 var(--ink);
 }
-.joinlabel { font-size: .8rem; color: #475569; }
-.roomcode { font-size: 1.7rem; font-weight: 800; letter-spacing: .12em; }
+.joinlabel { font-size: .85rem; font-weight: 800; color: #5b6070; }
+.roomcode {
+  font-size: 1.9rem; font-weight: 900; letter-spacing: .12em;
+}
+
+/* ---- ウィンドウ幅が狭いとき（縦長で使う場合など）---- */
+@media (max-width: 900px) {
+  .wall { columns: 1; }
+  .present-header h1 { font-size: 1.4rem; }
+  .present .bar-row.big { grid-template-columns: 8rem 1fr 3rem; font-size: 1.1rem; }
+  .present .bar-row.big .bar-label { font-size: 1rem; }
+  .present .bar-row.big.scale { grid-template-columns: 2.2rem 1fr 2.8rem; }
+  .present .bar-track { height: 1.8rem; }
+  .present .bar-num { font-size: 1.2rem; }
+  .present-main { padding: 1rem 13rem 1.5rem 1rem; }
+  .joinbox { flex-direction: column; gap: .3rem; text-align: center; }
+  .rt { font-size: 1.1rem; padding: .15rem .6rem; }
+  .joinbox { padding: .6rem; gap: .6rem; border-width: 3px; box-shadow: 5px 5px 0 var(--ink); }
+  .joinbox canvas { width: 110px; height: 110px; }
+  .roomcode { font-size: 1.3rem; }
+}
+
 
 /* ============================================================
    教員コントロール
