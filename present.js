@@ -25,6 +25,11 @@ $("roomCode").textContent = roomId;
 // 大きさを変えたいときは、この数字（画素）を変えてください
 QRCode.toCanvas($("qr"), studentUrl(roomId), { width: 130, margin: 1 });
 
+// --- QR枠はクリックで畳める（画面を広く使いたいとき用）-------
+$("joinBox").addEventListener("click", () => {
+  $("joinBox").classList.toggle("mini");
+});
+
 // --- ログイン（匿名）してから中身を読み込む ------------------
 const user = await signInAsGuest();
 

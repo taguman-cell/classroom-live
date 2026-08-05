@@ -371,7 +371,16 @@ body.present {
   padding: .9rem; display: flex; flex-direction: column; gap: .5rem;
   align-items: center; text-align: center;
   box-shadow: 8px 8px 0 var(--ink);
+  cursor: pointer;   /* クリックすると小さくなります */
 }
+
+/* 畳んだ状態。部屋IDだけ残します */
+.joinbox.mini { width: auto; padding: .35rem 1rem; }
+.joinbox.mini canvas,
+.joinbox.mini .joinlabel { display: none; }
+
+/* 畳んでいる間は、空けていた右の余白も詰める */
+body.present:has(.joinbox.mini) .present-main { padding-right: 1.5rem; }
 .joinlabel { font-size: .72rem; font-weight: 800; color: #5b6070; }
 .roomcode {
   font-size: 1.4rem; font-weight: 900; letter-spacing: .1em;
@@ -386,15 +395,23 @@ body.present {
   .present .bar-row.big.scale { grid-template-columns: 2.2rem 1fr 2.8rem; }
   .present .bar-track { height: 1.8rem; }
   .present .bar-num { font-size: 1.2rem; }
-  .present-main { padding: 1rem 11.5rem 1.5rem 1rem; }
+  .present-main { padding: 1rem; }
   .joinbox { flex-direction: column; gap: .3rem; text-align: center; }
   .rt { font-size: 1.1rem; padding: .15rem .6rem; }
+  /* 幅が狭いときは右下に浮かせず、画面の一番下の帯にします。
+     こうすると、票数やコメントと重なることが原理的に無くなります。 */
   .joinbox {
-    width: 8.5rem; padding: .5rem; gap: .35rem;
-    border-width: 3px; box-shadow: 5px 5px 0 var(--ink);
+    position: static; width: auto;
+    flex-direction: row; justify-content: center; gap: .9rem;
+    padding: .45rem .8rem;
+    border: none; border-top: 4px solid var(--ink); border-radius: 0;
+    box-shadow: none;
   }
-  .joinbox canvas { width: 96px; height: 96px; }
-  .roomcode { font-size: 1.1rem; }
+  .joinbox canvas { width: 74px; height: 74px; }
+  .joininfo { text-align: left; }
+  .joinlabel { font-size: .7rem; }
+  .roomcode { font-size: 1.25rem; }
+  .joinbox.mini { padding: .35rem .8rem; }
 }
 
 
