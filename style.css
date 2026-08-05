@@ -220,7 +220,7 @@ body.present {
 .present-main {
   flex: 1; overflow-y: auto;
   /* 右の余白は、右下のQRコード枠と中身が重ならないよう空けています */
-  padding: 1.5rem 12rem 2rem 1.5rem;
+  padding: 1.5rem 14.5rem 2rem 1.5rem;
   max-width: none; margin: 0;
 }
 .present .tab-panel { height: 100%; }
@@ -365,6 +365,7 @@ body.present {
 /* ---- 参加用のQRコード枠 ---- */
 .joinbox {
   position: fixed; right: 1.2rem; bottom: 1.2rem;
+  width: 11rem;              /* ← ここを変えたら .present-main の右余白も一緒に変えること */
   background: #fff; color: var(--ink);
   border: 4px solid var(--ink); border-radius: 20px;
   padding: .9rem; display: flex; flex-direction: column; gap: .5rem;
@@ -385,10 +386,13 @@ body.present {
   .present .bar-row.big.scale { grid-template-columns: 2.2rem 1fr 2.8rem; }
   .present .bar-track { height: 1.8rem; }
   .present .bar-num { font-size: 1.2rem; }
-  .present-main { padding: 1rem 10rem 1.5rem 1rem; }
+  .present-main { padding: 1rem 11.5rem 1.5rem 1rem; }
   .joinbox { flex-direction: column; gap: .3rem; text-align: center; }
   .rt { font-size: 1.1rem; padding: .15rem .6rem; }
-  .joinbox { padding: .5rem; gap: .35rem; border-width: 3px; box-shadow: 5px 5px 0 var(--ink); }
+  .joinbox {
+    width: 8.5rem; padding: .5rem; gap: .35rem;
+    border-width: 3px; box-shadow: 5px 5px 0 var(--ink);
+  }
   .joinbox canvas { width: 96px; height: 96px; }
   .roomcode { font-size: 1.1rem; }
 }
