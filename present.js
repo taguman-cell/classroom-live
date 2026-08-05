@@ -22,7 +22,8 @@ setupTabs("#tabs");
 
 // --- QRコードを描く（ログインを待たずに先に表示する）---------
 $("roomCode").textContent = roomId;
-QRCode.toCanvas($("qr"), studentUrl(roomId), { width: 190, margin: 1 });
+// 大きさを変えたいときは、この数字（画素）を変えてください
+QRCode.toCanvas($("qr"), studentUrl(roomId), { width: 130, margin: 1 });
 
 // --- ログイン（匿名）してから中身を読み込む ------------------
 const user = await signInAsGuest();
@@ -50,22 +51,56 @@ onSnapshot(doc(db, "rooms", roomId), (snap) => {
 const showable = (d) => !d.hidden && (!room?.moderation || d.approved);
 
 // ============================================================
-//  リアクションの合計（画面の右上に出す）
+//  リアクション（右上の合計＋下から浮き上がるアニメーション）
 // ============================================================
+let prevReactions = null;   // 前回の数。増えた分だけ絵文字を飛ばします
+
 onSnapshot(doc(db, "rooms", roomId, "meta", "reactions"), (snap) => {
   const d = snap.data() || {};
+
   const shown = REACTIONS.filter((r) => (d[r.key] || 0) > 0);
   $("reactTotal").innerHTML = shown
     .map((r) => `<span class="rt"><b>${r.emoji}</b> ${d[r.key]}</span>`)
     .join("");
+
+  // 画面を開いた直後は飛ばさない（前回の数がまだ無いため）
+  if (prevReactions) {
+    REACTIONS.forEach((r) => {
+      const delta = (d[r.key] || 0) - (prevReactions[r.key] || 0);
+      // 一度にたくさん押されても、飛ぶのは最大12個までにしておきます
+      if (delta > 0) floatUp(r.emoji, Math.min(delta, 12));
+    });
+  }
+  prevReactions = { ...d };
 });
+
+/** 絵文字を画面の下から n 個ふわっと浮き上がらせる */
+function floatUp(emoji, n) {
+  const layer = $("floatLayer");
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement("span");
+    el.className = "floater";
+    el.textContent = emoji;
+    // 出る位置・横揺れ・傾き・速さを少しずつ散らして、自然に見せる
+    el.style.left = (8 + Math.random() * 84) + "%";
+    el.style.setProperty("--dx", (Math.random() * 140 - 70) + "px");
+    el.style.setProperty("--rot", (Math.random() * 44 - 22) + "deg");
+    el.style.animationDelay = (i * 130) + "ms";
+    el.style.animationDuration = (2600 + Math.random() * 1400) + "ms";
+    el.addEventListener("animationend", () => el.remove());
+    layer.appendChild(el);
+  }
+}
 
 // ============================================================
 //  コメント
 // ============================================================
+// 投影画面に出すのは新しい方から12件だけ。
+// 多すぎると画面からはみ出して、スクロールしないと読めなくなるためです。
+// （全部の投稿は教員ページで見られます）
 onSnapshot(
   query(collection(db, "rooms", roomId, "comments"),
-        orderBy("createdAt", "desc"), limit(60)),
+        orderBy("createdAt", "desc"), limit(12)),
   (snap) => { commentDocs = snap.docs; renderComments(); }
 );
 
@@ -180,9 +215,10 @@ $("resetBtn").addEventListener("click", async () => {
 // ============================================================
 //  Q&A（いいねの多い順）
 // ============================================================
+// こちらも同じ理由で、いいねの多い方から12件だけ映します
 onSnapshot(
   query(collection(db, "rooms", roomId, "questions"),
-        orderBy("likes", "desc"), limit(30)),
+        orderBy("likes", "desc"), limit(12)),
   (snap) => { questionDocs = snap.docs; renderQuestions(); }
 );
 

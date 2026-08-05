@@ -220,19 +220,27 @@ body.present {
 .present-main {
   flex: 1; overflow-y: auto;
   /* 右の余白は、右下のQRコード枠と中身が重ならないよう空けています */
-  padding: 1.5rem 16rem 2rem 1.5rem;
+  padding: 1.5rem 12rem 2rem 1.5rem;
   max-width: none; margin: 0;
 }
 .present .tab-panel { height: 100%; }
 
 /* ---- コメント・質問のカード（付箋ふうに少し傾ける）---- */
-.wall { columns: 3; column-gap: 1.1rem; }
-@media (max-width: 1100px) { .wall { columns: 2; } }
+/*  グリッドを使っています。左から右へ、上の段から順に並びます。
+    （段組み＝columns だと「縦読み」になり、新着が届くたびに
+      全部が並び替わって見えるため）  */
+.wall {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.3rem 1.1rem;
+  align-items: start;
+}
+@media (max-width: 1100px) { .wall { grid-template-columns: repeat(2, 1fr); } }
 .tile {
-  break-inside: avoid; background: #fff;
+  background: #fff;
   border: 3px solid var(--ink); border-radius: 18px;
   box-shadow: 6px 6px 0 var(--ink);
-  padding: 1.1rem 1.2rem; margin-bottom: 1.3rem;
+  padding: 1.1rem 1.2rem;
   font-size: 1.3rem; line-height: 1.55; font-weight: 600;
 }
 .tile p { margin: 0; white-space: pre-wrap; word-break: break-word; }
@@ -328,6 +336,32 @@ body.present {
 .reset-btn:active { transform: translate(3px, 3px); box-shadow: none; }
 .reset-btn:disabled { opacity: .5; cursor: default; }
 
+/* ---- リアクションが下から浮き上がるアニメーション ---- */
+.floatlayer {
+  position: fixed; inset: 0; overflow: hidden;
+  pointer-events: none;   /* 画面の操作の邪魔をしない */
+  z-index: 40;
+}
+.floater {
+  position: absolute; bottom: -3rem;
+  font-size: 3.4rem; line-height: 1;
+  will-change: transform, opacity;
+  animation-name: floatup;
+  animation-timing-function: cubic-bezier(.25, .6, .35, 1);
+  animation-fill-mode: forwards;
+}
+@keyframes floatup {
+  0%   { transform: translate(0, 0) scale(.4) rotate(0deg); opacity: 0; }
+  12%  { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { transform: translate(var(--dx, 0), -82vh) scale(1.15) rotate(var(--rot, 0deg));
+         opacity: 0; }
+}
+/* 動きを控えめにする設定にしている人には、動かさない */
+@media (prefers-reduced-motion: reduce) {
+  .floater { display: none; }
+}
+
 /* ---- 参加用のQRコード枠 ---- */
 .joinbox {
   position: fixed; right: 1.2rem; bottom: 1.2rem;
@@ -337,26 +371,26 @@ body.present {
   align-items: center; text-align: center;
   box-shadow: 8px 8px 0 var(--ink);
 }
-.joinlabel { font-size: .85rem; font-weight: 800; color: #5b6070; }
+.joinlabel { font-size: .72rem; font-weight: 800; color: #5b6070; }
 .roomcode {
-  font-size: 1.9rem; font-weight: 900; letter-spacing: .12em;
+  font-size: 1.4rem; font-weight: 900; letter-spacing: .1em;
 }
 
 /* ---- ウィンドウ幅が狭いとき（縦長で使う場合など）---- */
 @media (max-width: 900px) {
-  .wall { columns: 1; }
+  .wall { grid-template-columns: 1fr; }
   .present-header h1 { font-size: 1.4rem; }
   .present .bar-row.big { grid-template-columns: 8rem 1fr 3rem; font-size: 1.1rem; }
   .present .bar-row.big .bar-label { font-size: 1rem; }
   .present .bar-row.big.scale { grid-template-columns: 2.2rem 1fr 2.8rem; }
   .present .bar-track { height: 1.8rem; }
   .present .bar-num { font-size: 1.2rem; }
-  .present-main { padding: 1rem 13rem 1.5rem 1rem; }
+  .present-main { padding: 1rem 10rem 1.5rem 1rem; }
   .joinbox { flex-direction: column; gap: .3rem; text-align: center; }
   .rt { font-size: 1.1rem; padding: .15rem .6rem; }
-  .joinbox { padding: .6rem; gap: .6rem; border-width: 3px; box-shadow: 5px 5px 0 var(--ink); }
-  .joinbox canvas { width: 110px; height: 110px; }
-  .roomcode { font-size: 1.3rem; }
+  .joinbox { padding: .5rem; gap: .35rem; border-width: 3px; box-shadow: 5px 5px 0 var(--ink); }
+  .joinbox canvas { width: 96px; height: 96px; }
+  .roomcode { font-size: 1.1rem; }
 }
 
 
