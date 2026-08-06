@@ -4,8 +4,8 @@
 
 import {
   db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
-  setupTabs, likedStore, reactedStore, REACTIONS,
-  collection, doc, addDoc, setDoc, onSnapshot, query, orderBy, limit,
+  setupTabs, likedStore, REACTIONS,
+  collection, doc, addDoc, setDoc, updateDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, increment, writeBatch,
 } from "./common.js";
 
@@ -62,51 +62,58 @@ onSnapshot(doc(db, "rooms", roomId), (snap) => {
 // ============================================================
 //  2. リアクション（コメントを書かなくても押せる）
 // ============================================================
-//  合計数はこの画面には出しません。投影画面にだけ出ます。
-//  こうすると通信量がほとんど増えません。
+//  何回でも押せます。押した数だけ合計に足され、投影画面に飛びます。
+//  合計数はこの画面には出しません（投影画面にだけ出ます）。
+//
+//  連打されても通信が増えすぎないよう、押した回数をいったん貯めて
+//  0.5秒ごとにまとめて送っています。
 
 function drawReactButtons() {
-  const mine = reactedStore.get(roomId);
   $("reactBtns").innerHTML = REACTIONS.map((r) => `
-    <button class="react ${mine.has(r.key) ? "on" : ""}"
-            data-rk="${r.key}" title="${r.label}" aria-label="${r.label}">
-      ${r.emoji}
-    </button>`).join("");
+    <button class="react" data-rk="${r.key}"
+            title="${r.label}" aria-label="${r.label}">${r.emoji}</button>`).join("");
 }
 drawReactButtons();
 
-$("reactBtns").addEventListener("click", async (e) => {
+const pending = {};        // まだ送っていない押した回数 { up: 3, ... }
+let flushTimer = null;
+
+$("reactBtns").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-rk]");
   if (!btn || btn.disabled) return;
 
   const key = btn.dataset.rk;
-  const mine = reactedStore.get(roomId);
-  const isOn = mine.has(key);
+  pending[key] = (pending[key] || 0) + 1;
 
-  // 合計数と、「自分が押した」記録を同時に書き込む
-  const batch = writeBatch(db);
-  const totalRef = doc(db, "rooms", roomId, "meta", "reactions");
-  const myRef = doc(db, "rooms", roomId, "reacts", `${user.uid}_${key}`);
+  // 押した手ごたえを出す
+  btn.classList.remove("pop");
+  void btn.offsetWidth;          // アニメーションをやり直させるための一手間
+  btn.classList.add("pop");
 
-  if (isOn) {
-    batch.delete(myRef);
-    batch.update(totalRef, { [key]: increment(-1) });
-  } else {
-    batch.set(myRef, { at: serverTimestamp() });
-    batch.update(totalRef, { [key]: increment(1) });
+  if (!flushTimer) flushTimer = setTimeout(flushReactions, 500);
+});
+
+async function flushReactions() {
+  flushTimer = null;
+
+  const payload = {};
+  for (const key of Object.keys(pending)) {
+    // 1回の送信で足せるのは10までにしています（ルール側でも制限）
+    payload[key] = increment(Math.min(pending[key], 10));
+    delete pending[key];
   }
-
-  // 押した感じをすぐ出すために、先に見た目を変える
-  btn.classList.toggle("on", !isOn);
+  if (Object.keys(payload).length === 0) return;
 
   try {
-    await batch.commit();
-    if (isOn) mine.delete(key); else mine.add(key);
-    reactedStore.save(roomId, mine);
+    await updateDoc(doc(db, "rooms", roomId, "meta", "reactions"), payload);
   } catch (err) {
-    btn.classList.toggle("on", isOn);   // 失敗したら元に戻す
     console.error(err);
   }
+}
+
+// ページを閉じる直前に、貯まっている分を送る
+addEventListener("pagehide", () => {
+  if (flushTimer) { clearTimeout(flushTimer); flushReactions(); }
 });
 
 // ============================================================

@@ -152,8 +152,7 @@ function localSet(prefix) {
 /** Q&A で「いいね」した質問 */
 export const likedStore = localSet("liked");
 
-/** この部屋で押したリアクション（"up" などのキーを覚える） */
-export const reactedStore = localSet("reacted");
+// リアクションは何回でも押せる仕様なので、端末に記録は持ちません。
 
 // 投票済みかどうかは端末には記録しません。
 // Firestore 上の「自分の回答」を直接見張っています（student.js の watchMyVote）。
