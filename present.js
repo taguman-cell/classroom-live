@@ -4,8 +4,8 @@
 
 import {
   auth, db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
-  setupTabs, studentUrl, REACTIONS,
-  collection, doc, getDocs, updateDoc, onSnapshot,
+  setupTabs, studentUrl, REACTIONS, emptyReactions,
+  collection, doc, setDoc, getDocs, updateDoc, onSnapshot,
   query, orderBy, limit, increment, writeBatch,
 } from "./common.js";
 
@@ -50,6 +50,7 @@ onSnapshot(doc(db, "rooms", roomId), (snap) => {
   // 承認制の切り替えを、その場で画面に反映する
   renderComments();
   renderQuestions();
+  ensureMetaDoc();
 });
 
 // 承認制がONなら承認済みだけ映す
@@ -60,7 +61,26 @@ const showable = (d) => !d.hidden && (!room?.moderation || d.approved);
 // ============================================================
 let prevReactions = null;   // 前回の数。増えた分だけ絵文字を飛ばします
 
+let metaMissing = false;
+
+/**
+ * リアクションの置き場が無ければ、先生が開いたときに作ります。
+ * これが無いと、学生がボタンを押しても保存先が無くて失敗します。
+ * （部屋の情報とリアクションの情報は届く順番が決まっていないので、
+ *   どちらが先に届いても作れるように、両方から呼んでいます）
+ */
+function ensureMetaDoc() {
+  if (!metaMissing || !room || !user) return;
+  if (room.ownerUid !== user.uid) return;
+  metaMissing = false;
+  setDoc(doc(db, "rooms", roomId, "meta", "reactions"), emptyReactions())
+    .catch((e) => console.error("リアクションの置き場を作れません", e));
+}
+
 onSnapshot(doc(db, "rooms", roomId, "meta", "reactions"), (snap) => {
+  metaMissing = !snap.exists();
+  ensureMetaDoc();
+
   const d = snap.data() || {};
 
   const shown = REACTIONS.filter((r) => (d[r.key] || 0) > 0);
