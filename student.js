@@ -5,7 +5,7 @@
 import {
   db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
   setupTabs, likedStore, REACTIONS,
-  collection, doc, addDoc, setDoc, updateDoc, onSnapshot, query, orderBy, limit,
+  collection, doc, addDoc, setDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, increment, writeBatch,
 } from "./common.js";
 
@@ -105,7 +105,10 @@ async function flushReactions() {
   if (Object.keys(payload).length === 0) return;
 
   try {
-    await updateDoc(doc(db, "rooms", roomId, "meta", "reactions"), payload);
+    // merge を付けると、保存先がまだ無いときは新しく作ってくれます。
+    // （updateDoc だと「無い書類は更新できない」で失敗します）
+    await setDoc(doc(db, "rooms", roomId, "meta", "reactions"), payload,
+                 { merge: true });
   } catch (err) {
     console.error(err);
   }

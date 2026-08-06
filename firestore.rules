@@ -72,7 +72,24 @@ service cloud.firestore {
       //  減らしたり、好きな数に書き換えたりはできません。
       match /meta/{metaId} {
         allow read: if signedIn();
-        allow create, delete: if isOwner(roomId);
+        allow delete: if isOwner(roomId);
+
+        // まだ保存先が無いときは、学生の書き込みで作られます。
+        // そのときの値は 0〜10 の数字だけに限ります。
+        function newVal(key) {
+          let v = request.resource.data.get(key, 0);
+          return v is int && v >= 0 && v <= 10;
+        }
+
+        allow create: if isOwner(roomId)
+          || (
+            signedIn()
+            && roomIsOpen(roomId)
+            && request.resource.data.keys()
+                 .hasOnly(['up', 'heart', 'lol', 'wow', 'hmm', 'bear'])
+            && newVal('up') && newVal('heart') && newVal('lol')
+            && newVal('wow') && newVal('hmm') && newVal('bear')
+          );
 
         // その絵文字が「変わっていない」か「1〜10 増えた」か
         function inc(key) {
