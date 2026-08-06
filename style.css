@@ -324,6 +324,7 @@ body.present {
 .react-total .rt:nth-child(3) { background: #E4F7EC; }
 .react-total .rt:nth-child(4) { background: #E6F0FF; }
 .react-total .rt:nth-child(5) { background: #F1E7FF; }
+.react-total .rt:nth-child(6) { background: #FFEBDF; }
 
 /* ---- 結果のリセットボタン ---- */
 .reset-btn {

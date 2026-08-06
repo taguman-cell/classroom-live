@@ -122,6 +122,7 @@ export const REACTIONS = [
   { key: "lol",   emoji: "😂", label: "笑った" },
   { key: "wow",   emoji: "😮", label: "びっくり" },
   { key: "hmm",   emoji: "🤔", label: "なるほど" },
+  { key: "bear",  emoji: "🐻", label: "クマ" },
 ];
 
 /** リアクション数の初期値 { up:0, heart:0, ... } */

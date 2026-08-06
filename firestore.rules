@@ -101,6 +101,7 @@ service cloud.firestore {
               || (changedOnly('lol')   && deltaOk(roomId, 'lol'))
               || (changedOnly('wow')   && deltaOk(roomId, 'wow'))
               || (changedOnly('hmm')   && deltaOk(roomId, 'hmm'))
+              || (changedOnly('bear')  && deltaOk(roomId, 'bear'))
             )
           );
       }
@@ -115,6 +116,7 @@ service cloud.firestore {
           || rid == request.auth.uid + '_lol'
           || rid == request.auth.uid + '_wow'
           || rid == request.auth.uid + '_hmm'
+          || rid == request.auth.uid + '_bear'
         );
       }
 

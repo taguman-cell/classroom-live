@@ -3,7 +3,8 @@
 // ============================================================
 
 import {
-  auth, db, escapeHtml, formatTime, makeRoomId, studentUrl, emptyReactions,
+  auth, db, escapeHtml, formatTime, makeRoomId, studentUrl,
+  emptyReactions, REACTIONS,
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, orderBy, limit, serverTimestamp,
@@ -151,11 +152,27 @@ function openRoom(roomId) {
   watchPolls(roomId);
 }
 
-/** 古い部屋にはリアクションの置き場が無いので、無ければ作る */
+/**
+ * リアクションの置き場を用意する。
+ * 部屋を作ったあとに絵文字の種類を増やした場合も、
+ * 足りない分だけ 0 で足します（足りないと、その絵文字が押せません）。
+ */
 async function ensureReactionDoc(roomId) {
   const ref = doc(db, "rooms", roomId, "meta", "reactions");
   const snap = await getDoc(ref);
-  if (!snap.exists()) await setDoc(ref, emptyReactions());
+
+  if (!snap.exists()) {
+    await setDoc(ref, emptyReactions());
+    return;
+  }
+  const cur = snap.data();
+  const missing = {};
+  REACTIONS.forEach((r) => {
+    if (typeof cur[r.key] !== "number") missing[r.key] = 0;
+  });
+  if (Object.keys(missing).length > 0) {
+    await setDoc(ref, missing, { merge: true });
+  }
 }
 
 // ============================================================
