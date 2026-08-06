@@ -154,17 +154,6 @@ export const likedStore = localSet("liked");
 /** この部屋で押したリアクション（"up" などのキーを覚える） */
 export const reactedStore = localSet("reacted");
 
-/**
- * 投票済みかどうかを、この端末に記録しておく。
- * 先生が結果をリセットすると resetCount が増え、記録が別物になるので
- * もう一度投票できるようになります。
- */
-export const votedStore = {
-  key: (pollId, resetCount = 0) => `voted_${pollId}_${resetCount}`,
-  has(pollId, resetCount) {
-    return localStorage.getItem(this.key(pollId, resetCount)) === "1";
-  },
-  set(pollId, resetCount) {
-    localStorage.setItem(this.key(pollId, resetCount), "1");
-  },
-};
+// 投票済みかどうかは端末には記録しません。
+// Firestore 上の「自分の回答」を直接見張っています（student.js の watchMyVote）。
+// そうしないと、先生がリセットしたことに気づけないためです。

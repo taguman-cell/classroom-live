@@ -4,7 +4,7 @@
 
 import {
   db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
-  setupTabs, likedStore, votedStore, reactedStore, REACTIONS,
+  setupTabs, likedStore, reactedStore, REACTIONS,
   collection, doc, addDoc, setDoc, onSnapshot, query, orderBy, limit,
   serverTimestamp, increment, writeBatch,
 } from "./common.js";
@@ -173,65 +173,90 @@ const pollsQ = query(
   limit(10)
 );
 
-let activePollUnsub = null;
+let currentPoll = null;   // いま出題されている投票 { id, data }
+let myVoteUnsub = null;   // 自分の回答を見張る
+let resultsUnsub = null;  // 全体の結果を見張る
 
 onSnapshot(pollsQ, (snap) => {
   const active = snap.docs.find((d) => d.data().active);
-  if (activePollUnsub) { activePollUnsub(); activePollUnsub = null; }
+  stopPollWatchers();
 
   if (!active) {
+    currentPoll = null;
     $("pollArea").innerHTML =
       '<p class="empty">いまは実施中の投票がありません。</p>';
     return;
   }
-  renderPoll(active.id, active.data());
+  currentPoll = { id: active.id, data: active.data() };
+  watchMyVote();
 });
 
-function renderPoll(pollId, poll) {
-  const reset = poll.resetCount || 0;
-  const voted = votedStore.has(pollId, reset);
+function stopPollWatchers() {
+  if (myVoteUnsub) { myVoteUnsub(); myVoteUnsub = null; }
+  if (resultsUnsub) { resultsUnsub(); resultsUnsub = null; }
+}
+
+/**
+ * 「自分の回答」そのものを見張ります。
+ * 先生が投影画面でリセットすると自分の回答が消えるので、
+ * この見張りが反応して、その場でもう一度投票できるようになります。
+ * （端末に「投票済み」と覚えさせる方式だと、画面を開き直すまで気づけません）
+ */
+function watchMyVote() {
+  const pollId = currentPoll.id;
+  myVoteUnsub = onSnapshot(
+    doc(db, "rooms", roomId, "polls", pollId, "responses", user.uid),
+    (snap) => renderPoll(snap.exists() ? snap.data().choice : null)
+  );
+}
+
+function renderPoll(myChoice) {
+  if (!currentPoll) return;
+  const { id: pollId, data: poll } = currentPoll;
+  const voted = myChoice !== null && myChoice !== undefined;
   const isScale = poll.type === "scale";
 
   // 1〜10 の投票は数字ボタンを並べる。選択肢式は縦に並べる。
   const buttons = poll.options.map((opt, i) => `
-    <button class="option ${isScale ? "scale" : ""}" data-i="${i}"
-            ${voted ? "disabled" : ""}>${escapeHtml(opt)}</button>`).join("");
+    <button class="option ${isScale ? "scale" : ""} ${i === myChoice ? "chosen" : ""}"
+            data-i="${i}" ${voted ? "disabled" : ""}>${escapeHtml(opt)}</button>`).join("");
 
   $("pollArea").innerHTML = `
     <p class="poll-lead">${voted ? "回答を受け付けました" : "前の画面を見て選んでください"}</p>
     <div id="pollOptions" class="${isScale ? "scale-grid" : "options"}">
       ${buttons}
     </div>
-    <p id="pollMsg" class="sent-note" ${voted ? "" : "hidden"}>✓ 回答しました</p>
+    <p class="sent-note" ${voted ? "" : "hidden"}>✓ 回答しました</p>
     <div id="pollResults"></div>
   `;
 
   $("pollOptions").addEventListener("click", async (e) => {
     const btn = e.target.closest("button.option");
-    if (!btn) return;
+    if (!btn || btn.disabled) return;
     try {
       // 1人1票にするため、ドキュメントIDを自分のUIDにする
       await setDoc(
         doc(db, "rooms", roomId, "polls", pollId, "responses", user.uid),
         { choice: Number(btn.dataset.i), createdAt: serverTimestamp() }
       );
-      votedStore.set(pollId, reset);
-      $("pollOptions").querySelectorAll("button").forEach((b) => (b.disabled = true));
-      btn.classList.add("chosen");
-      $("pollMsg").hidden = false;
-      if (poll.showResults) subscribeResults(pollId, poll);
+      // 画面の更新は、上の watchMyVote が自動でやってくれます
     } catch (err) {
       alert("投票できませんでした。すでに回答済みかもしれません。");
       console.error(err);
     }
   });
 
-  if (voted && poll.showResults) subscribeResults(pollId, poll);
+  // 結果は、先生が「結果公開」をONにしていて、自分が投票済みのときだけ
+  if (voted && poll.showResults) {
+    if (!resultsUnsub) subscribeResults(pollId, poll);
+  } else if (resultsUnsub) {
+    resultsUnsub(); resultsUnsub = null;
+  }
 }
 
-// 結果を集計して表示する（先生が「結果公開」をONにしたときだけ）
+// 結果を集計して表示する
 function subscribeResults(pollId, poll) {
-  activePollUnsub = onSnapshot(
+  resultsUnsub = onSnapshot(
     collection(db, "rooms", roomId, "polls", pollId, "responses"),
     (snap) => {
       const counts = new Array(poll.options.length).fill(0);
@@ -241,7 +266,9 @@ function subscribeResults(pollId, poll) {
       });
       const total = snap.size || 1;
 
-      $("pollResults").innerHTML = `
+      const box = $("pollResults");
+      if (!box) return;
+      box.innerHTML = `
         <h3 class="results-title">回答結果（${snap.size}人）</h3>
         ${poll.options.map((opt, i) => `
           <div class="bar-row">
