@@ -80,19 +80,48 @@ async function loadRooms() {
 
   $("roomList").innerHTML = rooms.length
     ? rooms.map((r) => `
-        <div class="card row">
+        <div class="card row" data-room="${r.id}">
           <div>
             <strong>${escapeHtml(r.title)}</strong>
             <div class="mono small">${r.id} ／ ${r.open ? "受付中" : "終了"}</div>
           </div>
-          <button data-open="${r.id}">開く</button>
+          <div class="actions">
+            <button data-open="${r.id}">開く</button>
+            <button data-del="${r.id}" data-title="${escapeHtml(r.title)}"
+                    class="danger">削除</button>
+          </div>
         </div>`).join("")
     : '<p class="empty">まだ部屋がありません。上の欄から作成してください。</p>';
 }
 
-$("roomList").addEventListener("click", (e) => {
-  const id = e.target.dataset?.open;
-  if (id) openRoom(id);
+$("roomList").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+
+  if (btn.dataset.open) { openRoom(btn.dataset.open); return; }
+
+  if (btn.dataset.del) {
+    const id = btn.dataset.del;
+    const title = btn.dataset.title;
+    if (!askDeleteOk(title)) return;
+
+    const row = btn.closest(".card");
+    btn.disabled = true;
+    row.classList.add("dim");
+    const label = row.querySelector(".mono");
+    const before = label.textContent;
+
+    try {
+      await deleteRoomCompletely(id, (msg) => (label.textContent = msg));
+      loadRooms();
+    } catch (err) {
+      label.textContent = "削除できませんでした：" + err.message;
+      setTimeout(() => { label.textContent = before; }, 4000);
+      row.classList.remove("dim");
+      btn.disabled = false;
+      console.error(err);
+    }
+  }
 });
 
 $("backBtn").addEventListener("click", () => {
@@ -159,43 +188,16 @@ function openRoom(roomId) {
 
 $("deleteRoomBtn").addEventListener("click", async () => {
   if (!currentRoom) return;
-
-  const ok = confirm(
-    `「${currentTitle}」を削除します。\n\n` +
-    `コメント・質問・投票・リアクションの記録がすべて消えます。\n` +
-    `元には戻せません。よろしいですか？`
-  );
-  if (!ok) return;
+  if (!askDeleteOk(currentTitle)) return;
 
   const btn = $("deleteRoomBtn");
   const log = $("deleteProgress");
   btn.disabled = true;
-
   const roomId = currentRoom;
-  stopAll();   // 見張りを止めてから消す（消えた先を見張り続けないように）
+  stopAll();   // 見張りを止めてから消す
 
   try {
-    log.textContent = "質問のいいね記録を削除中…";
-    const qs = await getDocs(collection(db, "rooms", roomId, "questions"));
-    for (const q of qs.docs) {
-      await deleteAllIn(["rooms", roomId, "questions", q.id, "votes"]);
-    }
-
-    log.textContent = "投票の回答を削除中…";
-    const ps = await getDocs(collection(db, "rooms", roomId, "polls"));
-    for (const p of ps.docs) {
-      await deleteAllIn(["rooms", roomId, "polls", p.id, "responses"]);
-    }
-
-    log.textContent = "投稿を削除中…";
-    await deleteAllIn(["rooms", roomId, "questions"]);
-    await deleteAllIn(["rooms", roomId, "polls"]);
-    await deleteAllIn(["rooms", roomId, "comments"]);
-    await deleteAllIn(["rooms", roomId, "reacts"]);
-
-    log.textContent = "部屋を削除中…";
-    await deleteDoc(doc(db, "rooms", roomId));   // 最後に部屋そのもの
-
+    await deleteRoomCompletely(roomId, (msg) => (log.textContent = msg));
     currentRoom = null;
     log.textContent = "";
     show("roomsView");
@@ -207,6 +209,42 @@ $("deleteRoomBtn").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+/** 削除していいか確認する（一覧からも部屋の中からも使います）*/
+function askDeleteOk(title) {
+  return confirm(
+    `「${title}」を削除します。\n\n` +
+    `コメント・質問・投票・リアクションの記録がすべて消えます。\n` +
+    `元には戻せません。よろしいですか？`
+  );
+}
+
+/**
+ * 部屋を中身ごと完全に消す。
+ * onProgress には進行状況の文字が渡されます。
+ */
+async function deleteRoomCompletely(roomId, onProgress = () => {}) {
+  onProgress("質問のいいね記録を削除中…");
+  const qs = await getDocs(collection(db, "rooms", roomId, "questions"));
+  for (const q of qs.docs) {
+    await deleteAllIn(["rooms", roomId, "questions", q.id, "votes"]);
+  }
+
+  onProgress("投票の回答を削除中…");
+  const ps = await getDocs(collection(db, "rooms", roomId, "polls"));
+  for (const p of ps.docs) {
+    await deleteAllIn(["rooms", roomId, "polls", p.id, "responses"]);
+  }
+
+  onProgress("投稿を削除中…");
+  await deleteAllIn(["rooms", roomId, "questions"]);
+  await deleteAllIn(["rooms", roomId, "polls"]);
+  await deleteAllIn(["rooms", roomId, "comments"]);
+  await deleteAllIn(["rooms", roomId, "reacts"]);
+
+  onProgress("部屋を削除中…");
+  await deleteDoc(doc(db, "rooms", roomId));   // 最後に部屋そのもの
+}
 
 /** 指定した入れ物の中身を全部消す（一度に500件までなので分けて実行）*/
 async function deleteAllIn(path) {
