@@ -6,13 +6,14 @@ import {
   auth, db, escapeHtml, formatTime, makeRoomId, studentUrl,
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
   collection, doc, addDoc, setDoc, getDocs, updateDoc, deleteDoc,
-  onSnapshot, query, where, orderBy, limit, serverTimestamp,
+  onSnapshot, query, where, orderBy, limit, serverTimestamp, writeBatch,
 } from "./common.js";
 
 const $ = (id) => document.getElementById(id);
 let me = null;          // ログイン中の先生
 let currentRoom = null; // いま開いている部屋のID
 let unsubs = [];        // 購読の停止用
+let currentTitle = "";  // いま開いている部屋の名前（削除の確認に使う）
 
 // ============================================================
 //  ログイン
@@ -130,6 +131,7 @@ function openRoom(roomId) {
     const r = snap.data();
     if (!r) return;
     $("rvTitle").textContent = r.title;
+    currentTitle = r.title;
     $("optOpen").checked = !!r.open;
     $("optModeration").checked = !!r.moderation;
     $("optFeed").checked = !!r.showFeedToStudents;
@@ -146,6 +148,74 @@ function openRoom(roomId) {
   watchComments(roomId);
   watchQuestions(roomId);
   watchPolls(roomId);
+}
+
+// ============================================================
+//  部屋の削除
+// ============================================================
+//  Firestore は「部屋」を消しても中のコメントなどは残ってしまうので、
+//  中身を先に全部消してから、最後に部屋そのものを消します。
+//  （部屋を先に消すと、権限の判定ができなくなって残りが消せません）
+
+$("deleteRoomBtn").addEventListener("click", async () => {
+  if (!currentRoom) return;
+
+  const ok = confirm(
+    `「${currentTitle}」を削除します。\n\n` +
+    `コメント・質問・投票・リアクションの記録がすべて消えます。\n` +
+    `元には戻せません。よろしいですか？`
+  );
+  if (!ok) return;
+
+  const btn = $("deleteRoomBtn");
+  const log = $("deleteProgress");
+  btn.disabled = true;
+
+  const roomId = currentRoom;
+  stopAll();   // 見張りを止めてから消す（消えた先を見張り続けないように）
+
+  try {
+    log.textContent = "質問のいいね記録を削除中…";
+    const qs = await getDocs(collection(db, "rooms", roomId, "questions"));
+    for (const q of qs.docs) {
+      await deleteAllIn(["rooms", roomId, "questions", q.id, "votes"]);
+    }
+
+    log.textContent = "投票の回答を削除中…";
+    const ps = await getDocs(collection(db, "rooms", roomId, "polls"));
+    for (const p of ps.docs) {
+      await deleteAllIn(["rooms", roomId, "polls", p.id, "responses"]);
+    }
+
+    log.textContent = "投稿を削除中…";
+    await deleteAllIn(["rooms", roomId, "questions"]);
+    await deleteAllIn(["rooms", roomId, "polls"]);
+    await deleteAllIn(["rooms", roomId, "comments"]);
+    await deleteAllIn(["rooms", roomId, "reacts"]);
+
+    log.textContent = "部屋を削除中…";
+    await deleteDoc(doc(db, "rooms", roomId));   // 最後に部屋そのもの
+
+    currentRoom = null;
+    log.textContent = "";
+    show("roomsView");
+    loadRooms();
+  } catch (err) {
+    log.textContent = "削除できませんでした：" + err.message;
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+/** 指定した入れ物の中身を全部消す（一度に500件までなので分けて実行）*/
+async function deleteAllIn(path) {
+  const snap = await getDocs(collection(db, ...path));
+  for (let i = 0; i < snap.docs.length; i += 400) {
+    const batch = writeBatch(db);
+    snap.docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
 }
 
 // ============================================================

@@ -127,7 +127,10 @@ service cloud.firestore {
         // 誰が「いいね」したかの記録（1人1回にするため）
         match /votes/{uid} {
           allow read: if signedIn();
-          allow create, delete: if signedIn() && uid == request.auth.uid;
+          allow create: if signedIn() && uid == request.auth.uid;
+          // 自分の分は取り消せる。先生は部屋を片づけるときに全部消せる
+          allow delete: if (signedIn() && uid == request.auth.uid)
+                        || isOwner(roomId);
         }
       }
 

@@ -453,6 +453,13 @@ body.present:has(.joinbox.mini) .present-main { padding-right: 1.5rem; }
 .actions button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
 .actions button.danger { color: var(--danger); }
 .joinrow { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.danger-panel { border-color: #fca5a5; background: #fff7f7; }
+.danger-btn {
+  background: #fff; color: var(--danger); border: 2px solid var(--danger);
+  border-radius: 8px; padding: .55rem 1.2rem; font-weight: 700; cursor: pointer;
+}
+.danger-btn:hover { background: var(--danger); color: #fff; }
+.danger-btn:disabled { opacity: .5; cursor: default; }
 .btnlike {
   display: inline-block; margin-left: .4rem; padding: .3rem .7rem;
   border: 1px solid var(--line); border-radius: 6px;
