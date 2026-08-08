@@ -4,9 +4,8 @@
 
 import {
   auth, db, escapeHtml, formatTime, makeRoomId, studentUrl,
-  emptyReactions, REACTIONS,
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
-  collection, doc, addDoc, setDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  collection, doc, addDoc, setDoc, getDocs, updateDoc, deleteDoc,
   onSnapshot, query, where, orderBy, limit, serverTimestamp,
 } from "./common.js";
 
@@ -63,8 +62,6 @@ $("createForm").addEventListener("submit", async (e) => {
     showFeedToStudents: false,
     createdAt: serverTimestamp(),
   });
-  // リアクションの合計を入れておく場所を用意する
-  await setDoc(doc(db, "rooms", id, "meta", "reactions"), emptyReactions());
   $("newTitle").value = "";
   loadRooms();
   openRoom(id);
@@ -146,33 +143,9 @@ function openRoom(roomId) {
   setOpt("optModeration", "moderation");
   setOpt("optFeed", "showFeedToStudents");
 
-  ensureReactionDoc(roomId);
   watchComments(roomId);
   watchQuestions(roomId);
   watchPolls(roomId);
-}
-
-/**
- * リアクションの置き場を用意する。
- * 部屋を作ったあとに絵文字の種類を増やした場合も、
- * 足りない分だけ 0 で足します（足りないと、その絵文字が押せません）。
- */
-async function ensureReactionDoc(roomId) {
-  const ref = doc(db, "rooms", roomId, "meta", "reactions");
-  const snap = await getDoc(ref);
-
-  if (!snap.exists()) {
-    await setDoc(ref, emptyReactions());
-    return;
-  }
-  const cur = snap.data();
-  const missing = {};
-  REACTIONS.forEach((r) => {
-    if (typeof cur[r.key] !== "number") missing[r.key] = 0;
-  });
-  if (Object.keys(missing).length > 0) {
-    await setDoc(ref, missing, { merge: true });
-  }
 }
 
 // ============================================================

@@ -4,8 +4,8 @@
 
 import {
   auth, db, signInAsGuest, getRoomIdFromUrl, escapeHtml, formatTime,
-  setupTabs, studentUrl, REACTIONS, emptyReactions,
-  collection, doc, setDoc, getDocs, updateDoc, onSnapshot,
+  setupTabs, studentUrl, REACTIONS,
+  collection, doc, getDocs, updateDoc, onSnapshot,
   query, orderBy, limit, increment, writeBatch,
 } from "./common.js";
 
@@ -50,7 +50,6 @@ onSnapshot(doc(db, "rooms", roomId), (snap) => {
   // 承認制の切り替えを、その場で画面に反映する
   renderComments();
   renderQuestions();
-  ensureMetaDoc();
 });
 
 // 承認制がONなら承認済みだけ映す
@@ -59,44 +58,32 @@ const showable = (d) => !d.hidden && (!room?.moderation || d.approved);
 // ============================================================
 //  リアクション（右上の合計＋下から浮き上がるアニメーション）
 // ============================================================
-let prevReactions = null;   // 前回の数。増えた分だけ絵文字を飛ばします
+let prevTotals = null;   // 前回の合計。増えた分だけ絵文字を飛ばします
 
-let metaMissing = false;
+//  学生は1人1枚の書類にリアクションを書きます。
+//  ここで全員分を足し合わせて合計を出します。
+onSnapshot(collection(db, "rooms", roomId, "reacts"), (snap) => {
+  const totals = {};
+  REACTIONS.forEach((r) => (totals[r.key] = 0));
+  snap.forEach((d) => {
+    const v = d.data();
+    REACTIONS.forEach((r) => (totals[r.key] += v[r.key] || 0));
+  });
 
-/**
- * リアクションの置き場が無ければ、先生が開いたときに作ります。
- * これが無いと、学生がボタンを押しても保存先が無くて失敗します。
- * （部屋の情報とリアクションの情報は届く順番が決まっていないので、
- *   どちらが先に届いても作れるように、両方から呼んでいます）
- */
-function ensureMetaDoc() {
-  if (!metaMissing || !room || !user) return;
-  if (room.ownerUid !== user.uid) return;
-  metaMissing = false;
-  setDoc(doc(db, "rooms", roomId, "meta", "reactions"), emptyReactions())
-    .catch((e) => console.error("リアクションの置き場を作れません", e));
-}
-
-onSnapshot(doc(db, "rooms", roomId, "meta", "reactions"), (snap) => {
-  metaMissing = !snap.exists();
-  ensureMetaDoc();
-
-  const d = snap.data() || {};
-
-  const shown = REACTIONS.filter((r) => (d[r.key] || 0) > 0);
+  const shown = REACTIONS.filter((r) => totals[r.key] > 0);
   $("reactTotal").innerHTML = shown
-    .map((r) => `<span class="rt"><b>${r.emoji}</b> ${d[r.key]}</span>`)
+    .map((r) => `<span class="rt"><b>${r.emoji}</b> ${totals[r.key]}</span>`)
     .join("");
 
-  // 画面を開いた直後は飛ばさない（前回の数がまだ無いため）
-  if (prevReactions) {
+  // 画面を開いた直後は飛ばさない（前回の合計がまだ無いため）
+  if (prevTotals) {
     REACTIONS.forEach((r) => {
-      const delta = (d[r.key] || 0) - (prevReactions[r.key] || 0);
+      const delta = totals[r.key] - (prevTotals[r.key] || 0);
       // 一度にたくさん押されても、飛ぶのは最大12個までにしておきます
       if (delta > 0) floatUp(r.emoji, Math.min(delta, 12));
     });
   }
-  prevReactions = { ...d };
+  prevTotals = totals;
 });
 
 /** 絵文字を画面の下から n 個ふわっと浮き上がらせる */

@@ -9,6 +9,8 @@ import {
   serverTimestamp, increment, writeBatch,
 } from "./common.js";
 
+import { containsNgWord } from "./ngwords.js";
+
 const roomId = getRoomIdFromUrl();
 const $ = (id) => document.getElementById(id);
 
@@ -26,7 +28,18 @@ let qaDocs = [];              // いま持っている質問
 let commentFeedUnsub = null;  // コメント一覧の購読を止めるための関数
 
 // --- ログイン（匿名）してから開始 ---------------------------
-const user = await signInAsGuest();
+//  ここで失敗すると以降が何も動かないので、黙って白い画面にせず
+//  理由と再読み込みボタンを出します。
+let user;
+try {
+  user = await signInAsGuest();
+} catch (err) {
+  document.body.innerHTML =
+    '<p class="fatal">接続できませんでした。<br>' +
+    '電波の良いところで、下のボタンを押してください。<br><br>' +
+    '<button onclick="location.reload()" class="primary">やり直す</button></p>';
+  throw err;
+}
 
 // ============================================================
 //  1. 部屋の情報を見張る
@@ -62,11 +75,13 @@ onSnapshot(doc(db, "rooms", roomId), (snap) => {
 // ============================================================
 //  2. リアクション（コメントを書かなくても押せる）
 // ============================================================
-//  何回でも押せます。押した数だけ合計に足され、投影画面に飛びます。
-//  合計数はこの画面には出しません（投影画面にだけ出ます）。
+//  何回でも押せます。押した数だけ投影画面に絵文字が飛びます。
 //
-//  連打されても通信が増えすぎないよう、押した回数をいったん貯めて
-//  0.5秒ごとにまとめて送っています。
+//  【重要】書き込み先は「自分専用の書類」です。
+//  Firestore は1つの書類に毎秒1回ほどしか書き込めないため、
+//  全員で同じ書類を取り合うと、人数が増えたときに失敗します。
+//  1人1枚にしておけば、何人いても取り合いが起きません。
+//  合計は投影画面が全員分を足して出します。
 
 function drawReactButtons() {
   $("reactBtns").innerHTML = REACTIONS.map((r) => `
@@ -75,6 +90,7 @@ function drawReactButtons() {
 }
 drawReactButtons();
 
+const myReactRef = doc(db, "rooms", roomId, "reacts", user.uid);
 const pending = {};        // まだ送っていない押した回数 { up: 3, ... }
 let flushTimer = null;
 
@@ -90,7 +106,7 @@ $("reactBtns").addEventListener("click", (e) => {
   void btn.offsetWidth;          // アニメーションをやり直させるための一手間
   btn.classList.add("pop");
 
-  if (!flushTimer) flushTimer = setTimeout(flushReactions, 500);
+  if (!flushTimer) flushTimer = setTimeout(flushReactions, 800);
 });
 
 async function flushReactions() {
@@ -98,19 +114,15 @@ async function flushReactions() {
 
   const payload = {};
   for (const key of Object.keys(pending)) {
-    // 1回の送信で足せるのは10までにしています（ルール側でも制限）
-    payload[key] = increment(Math.min(pending[key], 10));
+    payload[key] = increment(Math.min(pending[key], 20));
     delete pending[key];
   }
   if (Object.keys(payload).length === 0) return;
 
   try {
-    // merge を付けると、保存先がまだ無いときは新しく作ってくれます。
-    // （updateDoc だと「無い書類は更新できない」で失敗します）
-    await setDoc(doc(db, "rooms", roomId, "meta", "reactions"), payload,
-                 { merge: true });
+    await setDoc(myReactRef, payload, { merge: true });
   } catch (err) {
-    console.error(err);
+    console.error("リアクションを送れませんでした", err);
   }
 }
 
@@ -130,6 +142,12 @@ $("commentForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("commentText").value.trim();
   if (!text) return;
+
+  if (containsNgWord(text)) {
+    showBlocked($("commentBlocked"));
+    return;
+  }
+
   try {
     await addDoc(collection(db, "rooms", roomId, "comments"), {
       text,
@@ -304,6 +322,12 @@ $("qaForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const text = $("qaText").value.trim();
   if (!text) return;
+
+  if (containsNgWord(text)) {
+    showBlocked($("qaBlocked"));
+    return;
+  }
+
   try {
     await addDoc(collection(db, "rooms", roomId, "questions"), {
       text,
@@ -390,4 +414,10 @@ $("qaFeed").addEventListener("click", async (e) => {
 function flash(el) {
   el.hidden = false;
   setTimeout(() => (el.hidden = true), 2000);
+}
+
+/** 使えない言葉が含まれていたときの表示 */
+function showBlocked(el) {
+  el.hidden = false;
+  setTimeout(() => (el.hidden = true), 5000);
 }

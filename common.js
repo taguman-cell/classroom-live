@@ -53,14 +53,27 @@ export function getRoomIdFromUrl() {
  */
 export function signInAsGuest() {
   return new Promise((resolve, reject) => {
-    let tried = false;
+    let attempts = 0;
+
     const stop = onAuthStateChanged(auth, (user) => {
       if (user) { stop(); resolve(user); return; }
-      if (!tried) {
-        tried = true;
-        signInAnonymously(auth).catch(reject);
-      }
+      tryAnon();
     });
+
+    // 40人が一斉に開くと、ログインが一時的に失敗することがあります。
+    // 少し待って3回まで試し直します（1人だけ真っ白、を防ぐため）。
+    function tryAnon() {
+      if (attempts >= 3) return;
+      const wait = attempts * 1200;
+      attempts++;
+      setTimeout(() => {
+        signInAnonymously(auth).catch((e) => {
+          console.error("ログイン失敗", attempts, e);
+          if (attempts >= 3) { stop(); reject(e); }
+          else tryAnon();
+        });
+      }, wait);
+    }
   });
 }
 

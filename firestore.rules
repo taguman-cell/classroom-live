@@ -66,48 +66,35 @@ service cloud.firestore {
         allow update, delete: if isOwner(roomId);
       }
 
-      // ---- リアクションの合計 --------------------------------
+      // ---- リアクション --------------------------------------
       //  授業そのものへの反応。コメントとは関係ありません。
-      //  何回でも押せます。学生にできるのは「増やす」ことだけで、
-      //  減らしたり、好きな数に書き換えたりはできません。
-      match /meta/{metaId} {
+      //
+      //  【設計の意図】書類は「学生1人につき1枚」です。
+      //  Firestore は1つの書類に毎秒1回ほどしか書き込めないため、
+      //  全員で1枚を共有すると、人数が増えたときに書き込みが失敗します。
+      //  1人1枚なら取り合いが起きません。合計は投影画面が足します。
+      match /reacts/{uid} {
         allow read: if signedIn();
         allow delete: if isOwner(roomId);
 
-        // まだ保存先が無いときは、学生の書き込みで作られます。
-        // そのときの値は 0〜10 の数字だけに限ります。
-        function newVal(key) {
+        // 各絵文字の数が、0以上500以下の整数か
+        function val(key) {
           let v = request.resource.data.get(key, 0);
-          return v is int && v >= 0 && v <= 10;
+          return v is int && v >= 0 && v <= 500;
         }
 
-        allow create: if isOwner(roomId)
-          || (
-            signedIn()
-            && roomIsOpen(roomId)
-            && request.resource.data.keys()
-                 .hasOnly(['up', 'heart', 'lol', 'wow', 'hmm', 'bear'])
-            && newVal('up') && newVal('heart') && newVal('lol')
-            && newVal('wow') && newVal('hmm') && newVal('bear')
-          );
-
-        // その絵文字が「変わっていない」か「1〜10 増えた」か
-        function inc(key) {
-          let before = resource.data.get(key, 0);
-          let after = request.resource.data.get(key, 0);
-          return after == before
-              || (after > before && after <= before + 10);
+        function shapeOk() {
+          return request.resource.data.keys()
+                   .hasOnly(['up', 'heart', 'lol', 'wow', 'hmm', 'bear'])
+              && val('up') && val('heart') && val('lol')
+              && val('wow') && val('hmm') && val('bear');
         }
 
-        allow update: if isOwner(roomId)
-          || (
-            signedIn()
-            && roomIsOpen(roomId)
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['up', 'heart', 'lol', 'wow', 'hmm', 'bear'])
-            && inc('up') && inc('heart') && inc('lol')
-            && inc('wow') && inc('hmm') && inc('bear')
-          );
+        // 書けるのは自分の1枚だけ
+        allow create, update: if signedIn()
+                              && uid == request.auth.uid
+                              && roomIsOpen(roomId)
+                              && shapeOk();
       }
 
       // ---- Q&A ----------------------------------------------

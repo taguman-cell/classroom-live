@@ -86,6 +86,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 button.link { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; }
 
 .sent-note { color: var(--ok); font-weight: 600; font-size: .85rem; margin: .25rem 0; }
+.blocked-note {
+  background: #fee2e2; color: #b91c1c; font-weight: 700; font-size: .85rem;
+  border: 1px solid #fca5a5; border-radius: 8px;
+  padding: .5rem .7rem; margin: .25rem 0;
+}
 .hint, .empty { color: var(--muted); font-size: .85rem; }
 .empty { text-align: center; padding: 1.5rem 0; }
 .small { font-size: .78rem; color: var(--muted); }
